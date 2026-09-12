@@ -106,7 +106,7 @@ src/
   index.ts              entry point: canvas setup, click handlers, the tick loop
   models/
     grid.ts             Grid: 2D array of Cell, draw()
-    cell.ts             pheromone, ants, legacy alive flag
+    cell.ts             pheromone, ants
     ant.ts              per-agent state
     obstacle.ts         rectangle + contains() + draw()
     pointOfInterest.ts  a target point + draw()
@@ -115,8 +115,6 @@ src/
     randomWalk.ts        uniform 4-direction step
     levyFlight.ts        heavy-tailed run length
   rules/
-    rules.ts            Rules interface
-    conwayRules.ts       Game of Life — unused, kept as a second Rules implementation
     antsRules.ts         the simulation — see below
 ```
 
@@ -138,7 +136,6 @@ export class Cell {
   constructor(
     public readonly x: number,
     public readonly y: number,
-    public alive: boolean = false, // only ConwayRules touches this
   ) {}
 }
 ```
@@ -307,14 +304,6 @@ None of these are derived from the paper — it proves a spiral solution is
 were reached by running the simulation headlessly for thousands of ticks
 and measuring outcomes (distance to POI, degrees rotated around an
 obstacle), not by solving the paper's equations directly.
-
-### Rules & ConwayRules
-
-`Rules` is a one-method interface — `update(grid): void` — that `AntRules`
-and `ConwayRules` both satisfy. `ConwayRules` is a plain Game of Life over
-`cell.alive`: count live neighbors, apply B3/S23, swap buffers. `index.ts`
-never instantiates it — it's kept as a second, independent `Rules`
-implementation, not wired into the running app.
 
 ## What's still approximate
 

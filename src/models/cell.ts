@@ -5,6 +5,5 @@ export class Cell {
   constructor(
     public readonly x: number,
     public readonly y: number,
-    public alive: boolean = false,
   ) {}
 }
