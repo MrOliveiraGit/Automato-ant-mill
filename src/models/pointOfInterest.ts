@@ -1,11 +1,32 @@
 export class PointOfInterest {
+  private remainingTicks: number;
+
   constructor(
     public x: number,
     public y: number,
-  ) {}
+    private lifespan: number = 300,
+  ) {
+    this.remainingTicks = lifespan;
+  }
+
+  /*
+   * Consome uma parte da "comida" a cada tick. Quando o POI
+   * se esgota (remainingTicks <= 0), AntRules o remove do grid.
+   */
+  tick(): void {
+    if (this.remainingTicks > 0) {
+      this.remainingTicks--;
+    }
+  }
+
+  isExpired(): boolean {
+    return this.remainingTicks <= 0;
+  }
 
   draw(ctx: CanvasRenderingContext2D, cellSize: number) {
-    ctx.fillStyle = "red";
+    const alpha = this.remainingTicks / this.lifespan;
+
+    ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`;
 
     ctx.beginPath();
 

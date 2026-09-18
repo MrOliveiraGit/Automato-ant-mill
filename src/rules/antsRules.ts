@@ -38,10 +38,28 @@ export class AntRules {
   ) {}
 
   update(grid: Grid): void {
+    this.updatePointsOfInterest();
     this.clearAntDensity(grid);
     this.moveAnts(grid);
     this.depositPheromone(grid);
     this.diffusePheromone(grid);
+  }
+
+  /*
+   * Envelhece cada POI e remove os que se esgotaram — feito antes de
+   * mover as formigas para que a checagem de `pointsOfInterest.length`
+   * em moveAnts já reflita os POIs que expiraram neste tick.
+   */
+  private updatePointsOfInterest() {
+    for (const poi of this.pointsOfInterest) {
+      poi.tick();
+    }
+
+    for (let i = this.pointsOfInterest.length - 1; i >= 0; i--) {
+      if (this.pointsOfInterest[i].isExpired()) {
+        this.pointsOfInterest.splice(i, 1);
+      }
+    }
   }
 
   private clearAntDensity(grid: Grid) {

@@ -16,7 +16,9 @@ npm run format   # prettier --write src
 
 Open the page, then:
 
-- **Left-click** the canvas to drop a `PointOfInterest` (food).
+- **Left-click** the canvas to drop a `PointOfInterest` (food). It fades and
+  disappears once its lifespan runs out (300 ticks by default), like food
+  running out — it isn't a permanent fixture on the grid.
 - **Right-click** to drop a rectangular `Obstacle`.
 
 There's no test suite or linter configured in this project.
@@ -109,7 +111,7 @@ src/
     cell.ts             pheromone, ants
     ant.ts              per-agent state
     obstacle.ts         rectangle + contains() + draw()
-    pointOfInterest.ts  a target point + draw()
+    pointOfInterest.ts  a target point with a lifespan + tick()/isExpired()/draw()
   movement/
     movement.ts         Movement interface
     randomWalk.ts        uniform 4-direction step
