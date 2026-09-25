@@ -31,6 +31,14 @@ export class AntRules {
   // quanto a direção memorizada pesa frente ao estímulo do tick atual
   private memoryWeight = 0.5;
 
+  /*
+   * Uma vez que um POI real já existiu, o gate abaixo (que impede o
+   * colapso do agrupamento inicial) não deve voltar a bloquear o
+   * trail-following só porque aquele POI expirou — a trilha de
+   * feromônio já construída continua válida mesmo sem POI ativo.
+   */
+  private everHadPointOfInterest = false;
+
   constructor(
     private ants: Ant[],
     private pointsOfInterest: PointOfInterest[],
@@ -51,6 +59,10 @@ export class AntRules {
    * em moveAnts já reflita os POIs que expiraram neste tick.
    */
   private updatePointsOfInterest() {
+    if (this.pointsOfInterest.length > 0) {
+      this.everHadPointOfInterest = true;
+    }
+
     for (const poi of this.pointsOfInterest) {
       poi.tick();
     }
@@ -83,16 +95,17 @@ export class AntRules {
         [nx, ny] = this.levyFlight.move(ant);
       } else {
         /*
-         * Sem um POI, não há nenhum objetivo competindo com o
-         * feromônio — formigas recém-nascidas já começam agrupadas,
-         * então seguir a trilha nesse momento faz o próprio
-         * agrupamento inicial colapsar num mill antes mesmo de a
-         * simulação começar de verdade. Enquanto não existir POI, as
-         * formigas apenas exploram (Lévy/Random Walk); o
-         * comportamento de seguir trilha + memória só entra quando
-         * há um objetivo real a perseguir.
+         * Sem nunca ter existido um POI, não há nenhum objetivo
+         * competindo com o feromônio — formigas recém-nascidas já
+         * começam agrupadas, então seguir a trilha nesse momento faz o
+         * próprio agrupamento inicial colapsar num mill antes mesmo de
+         * a simulação começar de verdade. Até o primeiro POI ser
+         * colocado, as formigas apenas exploram (Lévy/Random Walk); o
+         * comportamento de seguir trilha + memória entra a partir daí
+         * e continua mesmo depois que aquele POI expira — a trilha de
+         * feromônio já construída não deixa de existir junto com ele.
          */
-        const followChance = this.pointsOfInterest.length > 0 ? 0.8 : 0;
+        const followChance = this.everHadPointOfInterest ? 0.8 : 0;
 
         if (Math.random() < followChance) {
           [nx, ny] = this.steerTowardTrail(grid, ant);
