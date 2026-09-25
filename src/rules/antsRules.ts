@@ -2,6 +2,7 @@ import type { Grid } from "../models/grid.js";
 import type { Ant } from "../models/ant.js";
 import type { PointOfInterest } from "../models/pointOfInterest.js";
 import type { Obstacle } from "../models/obstacle.js";
+import type { Wind } from "../models/wind.js";
 
 import { RandomWalk } from "../movement/randomWalk.js";
 import { LevyFlight } from "../movement/levyFlight.js";
@@ -31,11 +32,36 @@ export class AntRules {
   // quanto a direção memorizada pesa frente ao estímulo do tick atual
   private memoryWeight = 0.5;
 
+  // fração dos ticks (fora de um voo de Lévy) em que a formiga segue a trilha
+  private trailFollowChance = 0.8;
+
   constructor(
     private ants: Ant[],
     private pointsOfInterest: PointOfInterest[],
     private obstacles: Obstacle[],
+    private wind: Wind,
+    private followTrailsWithoutPOI = false,
   ) {}
+
+  /*
+   * Velocidade de advecção efetivamente usada pelo solver. O esquema upwind
+   * explícito abaixo só preserva positividade (e estabilidade) enquanto
+   * |vx| + |vy| + 4D + evaporation ≤ 1 — todos os coeficientes da
+   * atualização ficam não negativos, então o novo valor é uma média
+   * ponderada dos vizinhos. Um vento mais forte que isso é reduzido
+   * mantendo a direção, em vez de deixar o campo explodir.
+   */
+  advectionVelocity(): [number, number] {
+    const [vx, vy] = this.wind.velocity();
+    const limit = 1 - 4 * this.D - this.evaporation;
+    const speed = Math.abs(vx) + Math.abs(vy);
+
+    if (speed <= limit) {
+      return [vx, vy];
+    }
+
+    return [(vx * limit) / speed, (vy * limit) / speed];
+  }
 
   update(grid: Grid): void {
     this.clearAntDensity(grid);
@@ -73,8 +99,17 @@ export class AntRules {
          * formigas apenas exploram (Lévy/Random Walk); o
          * comportamento de seguir trilha + memória só entra quando
          * há um objetivo real a perseguir.
+         *
+         * `followTrailsWithoutPOI` desliga essa trava para condições
+         * iniciais que já trazem uma estrutura química semeada (as
+         * trilhas A↔B do experimento de vento), onde as formigas não
+         * nascem aglomeradas e a trilha é justamente o que se quer que
+         * elas sigam.
          */
-        const followChance = this.pointsOfInterest.length > 0 ? 0.8 : 0;
+        const followChance =
+          this.followTrailsWithoutPOI || this.pointsOfInterest.length > 0
+            ? this.trailFollowChance
+            : 0;
 
         if (Math.random() < followChance) {
           [nx, ny] = this.steerTowardTrail(grid, ant);
@@ -323,7 +358,22 @@ export class AntRules {
     }
   }
 
+  /*
+   * Integra ∂g/∂t = D∇²g − v·∇g − evaporation·g (o termo λρ já entrou em
+   * depositPheromone) com Euler explícito, dt = 1 tick e dx = 1 célula.
+   *
+   * O termo de advecção usa upwind de primeira ordem: a derivada em cada
+   * eixo é tomada do lado de onde o vento vem, o que dá
+   * −|v|·(g − g_upwind). Diferença central seria mais simples, mas com
+   * Euler explícito é instável para advecção pura e gera concentrações
+   * negativas. Na borda de onde o vento sopra entra ar limpo (vizinho
+   * ausente conta como 0) e na borda oposta o feromônio simplesmente sai
+   * do grid. Obstáculos não bloqueiam o vento, assim como já não bloqueiam
+   * a difusão.
+   */
   private diffusePheromone(grid: Grid) {
+    const [vx, vy] = this.advectionVelocity();
+
     const next = Array.from(
       {
         length: grid.rows,
@@ -348,7 +398,14 @@ export class AntRules {
           (grid.get(x, y - 1)?.pheromone ?? g) -
           4 * g;
 
-        let value = g + this.D * laplacian - this.evaporation * g;
+        const upwindX = vx > 0 ? grid.get(x - 1, y) : grid.get(x + 1, y);
+        const upwindY = vy > 0 ? grid.get(x, y - 1) : grid.get(x, y + 1);
+
+        const advection =
+          Math.abs(vx) * (g - (upwindX?.pheromone ?? 0)) +
+          Math.abs(vy) * (g - (upwindY?.pheromone ?? 0));
+
+        let value = g + this.D * laplacian - this.evaporation * g - advection;
 
         if (value < 0) {
           value = 0;

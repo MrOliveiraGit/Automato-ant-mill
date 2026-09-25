@@ -10,7 +10,8 @@ export class Grid {
 
     public cellSize: number,
 
-    private ctx: CanvasRenderingContext2D,
+    // ausente quando a simulação roda sem navegador (experimentos em lote)
+    private ctx: CanvasRenderingContext2D | null = null,
   ) {
     this.cells = Array.from(
       {
@@ -41,6 +42,10 @@ export class Grid {
   }
 
   draw() {
+    if (!this.ctx) {
+      throw new Error("Grid.draw() requires a canvas context");
+    }
+
     const maxPheromone = 10;
 
     this.ctx.clearRect(

@@ -1,97 +1,177 @@
-import { Grid } from "./models/grid.js";
-import { Ant } from "./models/ant.js";
 import { PointOfInterest } from "./models/pointOfInterest.js";
-import { AntRules } from "./rules/antsRules.js";
 import { Obstacle } from "./models/obstacle.js";
+import {
+  WIND_EXPERIMENT,
+  WIND_PRESETS,
+  createSimulation,
+  nearWallFraction,
+  type Scenario,
+  type Simulation,
+} from "./simulation/windExperiment.js";
+import type { MillSnapshot } from "./simulation/millMetrics.js";
+import {
+  drawMillMarker,
+  drawTrailEndpoints,
+  drawWindIndicator,
+} from "./simulation/experimentOverlay.js";
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+const hud = document.getElementById("hud") as HTMLElement;
 
 const ctx = canvas.getContext("2d");
 
 if (!ctx) throw new Error();
 
 const cellSize = 6;
-const rows = 100;
-const cols = 100;
 
-canvas.width = cols * cellSize;
-canvas.height = rows * cellSize;
+canvas.width = WIND_EXPERIMENT.cols * cellSize;
+canvas.height = WIND_EXPERIMENT.rows * cellSize;
 
-const grid = new Grid(rows, cols, cellSize, ctx);
+/*
+ * ?scenario=classic volta ao cenário original: formigas num canto, sem
+ * trilhas semeadas, e seguir trilha só depois de existir um POI.
+ */
+const scenario: Scenario =
+  new URLSearchParams(location.search).get("scenario") === "classic"
+    ? "classic"
+    : "trails";
 
-const ants: Ant[] = [];
-const pointsOfInterest: PointOfInterest[] = [];
-const obstacles: Obstacle[] = [];
+/*
+ * POIs e obstáculos colocados com o mouse sobrevivem ao reinício, para que
+ * as intensidades de vento sejam comparadas sobre a mesma configuração.
+ */
+const placedPointsOfInterest: PointOfInterest[] = [];
+const placedObstacles: Obstacle[] = [];
 
-const numberOfAnts = 200;
+let presetIndex = 0;
+let tick = 0;
 
-const spawnWidth = 0.2;
-const spawnHeight = 0.3;
+const start = (): Simulation => {
+  tick = 0;
 
-for (let i = 0; i < numberOfAnts; i++) {
-  const x = Math.floor(Math.random() * grid.rows * spawnWidth);
+  return createSimulation({
+    scenario,
+    windStrength: WIND_PRESETS[presetIndex].strength,
+    seed: WIND_EXPERIMENT.seed,
+    ctx,
+    cellSize,
+    obstacles: placedObstacles,
+    pointsOfInterest: placedPointsOfInterest,
+  });
+};
 
-  const y = Math.floor(Math.random() * grid.cols * spawnHeight);
+let simulation = start();
 
-  ants.push(new Ant(x, y));
+function cellAt(event: MouseEvent): [number, number] {
+  const rect = canvas.getBoundingClientRect();
+
+  return [
+    Math.floor((event.clientY - rect.top) / cellSize),
+    Math.floor((event.clientX - rect.left) / cellSize),
+  ];
 }
 
 /*
  * Clique esquerdo → cria um POI
  */
-
 canvas.addEventListener("click", (event) => {
-  const rect = canvas.getBoundingClientRect();
-
-  const y = Math.floor((event.clientX - rect.left) / grid.cellSize);
-
-  const x = Math.floor((event.clientY - rect.top) / grid.cellSize);
+  const [x, y] = cellAt(event);
 
   console.log("POI:", { x, y });
 
-  pointsOfInterest.push(new PointOfInterest(x, y));
+  const poi = new PointOfInterest(x, y);
+
+  placedPointsOfInterest.push(poi);
+  simulation.pointsOfInterest.push(poi);
 });
 
 /*
  * Clique direito → cria um obstáculo
  */
-
 canvas.addEventListener("contextmenu", (event) => {
   event.preventDefault();
 
-  const rect = canvas.getBoundingClientRect();
-
-  const y = Math.floor((event.clientX - rect.left) / grid.cellSize);
-
-  const x = Math.floor((event.clientY - rect.top) / grid.cellSize);
+  const [x, y] = cellAt(event);
 
   console.log("Obstáculo:", { x, y });
 
-  obstacles.push(
-    new Obstacle(
-      x,
-      y,
-      10, // largura
-      5, // altura
-    ),
+  const obstacle = new Obstacle(
+    x,
+    y,
+    10, // largura
+    5, // altura
   );
-});
-/*
-Agora o AntRules recebe os POIs.
-*/
 
-const rules = new AntRules(ants, pointsOfInterest, obstacles);
+  placedObstacles.push(obstacle);
+  simulation.obstacles.push(obstacle);
+});
+
+/*
+ * 1–4 → escolhe a intensidade do vento e reinicia da mesma condição inicial;
+ * R → reinicia sem trocar o vento.
+ */
+window.addEventListener("keydown", (event) => {
+  const preset = ["1", "2", "3", "4"].indexOf(event.key);
+
+  if (preset >= 0) {
+    presetIndex = preset;
+    simulation = start();
+  } else if (event.key.toLowerCase() === "r") {
+    simulation = start();
+  }
+});
+
+function describe(snapshot: MillSnapshot): string {
+  const summary = simulation.metrics.summary();
+  const [vx, vy] = simulation.rules.advectionVelocity();
+  const walls = nearWallFraction(simulation.ants, simulation.grid);
+  const { minParticipants, minAlignment } = WIND_EXPERIMENT.metrics;
+
+  const mill = snapshot.rotating
+    ? `YES — episode ${snapshot.episodeTicks} ticks, ${snapshot.episodeRotations.toFixed(2)} rotations`
+    : `no (needs ≥ ${minParticipants} looping ants with alignment ≥ ${minAlignment})`;
+
+  return [
+    `Wind: ${WIND_PRESETS[presetIndex].name} — v = (${vx.toFixed(3)}, ${vy.toFixed(3)}) cells/tick`,
+    `  [1] no wind  [2] weak  [3] moderate  [4] strong  [R] restart   ` +
+      `scenario ${scenario}, seed ${WIND_EXPERIMENT.seed}, tick ${tick}`,
+    `Mill: ${mill}`,
+    `  looping ants ${snapshot.participants} (${snapshot.sense > 0 ? "counter-clockwise" : "clockwise"}), ` +
+      `alignment ${snapshot.alignment.toFixed(2)}, order ${snapshot.order.toFixed(2)}, ` +
+      `radius ${snapshot.meanRadius.toFixed(1)}, ω ${snapshot.angularVelocity.toFixed(3)} rad/tick`,
+    `  run so far: rotating ${((100 * summary.rotatingTicks) / Math.max(1, summary.ticks)).toFixed(1)}% of ticks, ` +
+      `longest episode ${summary.longestEpisodeTicks} ticks, max ${summary.maxEpisodeRotations.toFixed(2)} rotations`,
+    `Ants within 2 cells of the grid edge: ${(100 * walls).toFixed(0)}%`,
+  ].join("\n");
+}
 
 setInterval(() => {
-  rules.update(grid);
+  simulation.rules.update(simulation.grid);
 
-  grid.draw();
+  const snapshot = simulation.metrics.measure(simulation.ants);
 
-  for (const poi of pointsOfInterest) {
+  tick++;
+
+  simulation.grid.draw();
+
+  for (const poi of simulation.pointsOfInterest) {
     poi.draw(ctx, cellSize);
   }
 
-  for (const obstacle of obstacles) {
+  for (const obstacle of simulation.obstacles) {
     obstacle.draw(ctx, cellSize);
   }
+
+  if (scenario === "trails") {
+    drawTrailEndpoints(ctx, cellSize, WIND_EXPERIMENT.trails);
+  }
+
+  drawMillMarker(ctx, cellSize, snapshot);
+  drawWindIndicator(
+    ctx,
+    simulation.rules.advectionVelocity(),
+    WIND_PRESETS[presetIndex].name,
+  );
+
+  hud.textContent = describe(snapshot);
 }, 100);
