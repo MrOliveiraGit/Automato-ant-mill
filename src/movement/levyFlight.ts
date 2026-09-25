@@ -36,29 +36,15 @@ export class LevyFlight {
       [1, 1],
     ];
 
-    const direction =
-      directions[
-        Math.floor(
-          Math.random() * directions.length,
-        )
-      ];
+    const direction = directions[Math.floor(Math.random() * directions.length)];
 
     ant.levyDirectionX = direction[0];
     ant.levyDirectionY = direction[1];
 
-    let length = Math.pow(
-      Math.random(),
-      -1 / (this.mu - 1),
-    );
+    let length = Math.pow(Math.random(), -1 / (this.mu - 1));
 
-    length = Math.min(
-      length,
-      this.maxLength,
-    );
+    length = Math.min(length, this.maxLength);
 
-    ant.levyRemainingSteps = Math.max(
-      1,
-      Math.floor(length),
-    );
+    ant.levyRemainingSteps = Math.max(1, Math.floor(length));
   }
 }

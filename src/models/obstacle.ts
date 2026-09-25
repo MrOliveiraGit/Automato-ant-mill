@@ -15,10 +15,7 @@ export class Obstacle {
     );
   }
 
-  draw(
-    ctx: CanvasRenderingContext2D,
-    cellSize: number,
-  ) {
+  draw(ctx: CanvasRenderingContext2D, cellSize: number) {
     ctx.fillStyle = "black";
 
     ctx.fillRect(

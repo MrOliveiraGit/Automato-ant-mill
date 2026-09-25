@@ -17,18 +17,11 @@ const cols = 100;
 canvas.width = cols * cellSize;
 canvas.height = rows * cellSize;
 
-const grid = new Grid(
-  rows,
-  cols,
-  cellSize,
-  ctx,
-);
+const grid = new Grid(rows, cols, cellSize, ctx);
 
 const ants: Ant[] = [];
 const pointsOfInterest: PointOfInterest[] = [];
 const obstacles: Obstacle[] = [];
-
-
 
 const numberOfAnts = 200;
 
@@ -36,13 +29,9 @@ const spawnWidth = 0.2;
 const spawnHeight = 0.3;
 
 for (let i = 0; i < numberOfAnts; i++) {
-  const x = Math.floor(
-    Math.random() * grid.rows * spawnWidth,
-  );
+  const x = Math.floor(Math.random() * grid.rows * spawnWidth);
 
-  const y = Math.floor(
-    Math.random() * grid.cols * spawnHeight,
-  );
+  const y = Math.floor(Math.random() * grid.cols * spawnHeight);
 
   ants.push(new Ant(x, y));
 }
@@ -54,21 +43,14 @@ for (let i = 0; i < numberOfAnts; i++) {
 canvas.addEventListener("click", (event) => {
   const rect = canvas.getBoundingClientRect();
 
-  const y = Math.floor(
-    (event.clientX - rect.left) / grid.cellSize,
-  );
+  const y = Math.floor((event.clientX - rect.left) / grid.cellSize);
 
-  const x = Math.floor(
-    (event.clientY - rect.top) / grid.cellSize,
-  );
+  const x = Math.floor((event.clientY - rect.top) / grid.cellSize);
 
   console.log("POI:", { x, y });
 
-  pointsOfInterest.push(
-    new PointOfInterest(x, y),
-  );
+  pointsOfInterest.push(new PointOfInterest(x, y));
 });
-
 
 /*
  * Clique direito → cria um obstáculo
@@ -79,13 +61,9 @@ canvas.addEventListener("contextmenu", (event) => {
 
   const rect = canvas.getBoundingClientRect();
 
-  const y = Math.floor(
-    (event.clientX - rect.left) / grid.cellSize,
-  );
+  const y = Math.floor((event.clientX - rect.left) / grid.cellSize);
 
-  const x = Math.floor(
-    (event.clientY - rect.top) / grid.cellSize,
-  );
+  const x = Math.floor((event.clientY - rect.top) / grid.cellSize);
 
   console.log("Obstáculo:", { x, y });
 
@@ -102,11 +80,7 @@ canvas.addEventListener("contextmenu", (event) => {
 Agora o AntRules recebe os POIs.
 */
 
-const rules = new AntRules(
-  ants,
-  pointsOfInterest,
-  obstacles,
-);
+const rules = new AntRules(ants, pointsOfInterest, obstacles);
 
 setInterval(() => {
   rules.update(grid);

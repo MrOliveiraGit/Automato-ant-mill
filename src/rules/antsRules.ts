@@ -82,10 +82,7 @@ export class AntRules {
           if (Math.random() < 0.01) {
             [nx, ny] = this.levyFlight.move(ant);
           } else {
-            [nx, ny] = this.randomWalk.move(
-              ant.x,
-              ant.y,
-            );
+            [nx, ny] = this.randomWalk.move(ant.x, ant.y);
           }
         }
       }
@@ -94,11 +91,7 @@ export class AntRules {
        * Verifica se a nova posição está dentro do grid
        * e se não está dentro de um obstáculo.
        */
-      const insideGrid =
-        nx >= 0 &&
-        nx < grid.rows &&
-        ny >= 0 &&
-        ny < grid.cols;
+      const insideGrid = nx >= 0 && nx < grid.rows && ny >= 0 && ny < grid.cols;
 
       const blocked = this.isBlocked(nx, ny);
 
@@ -107,10 +100,7 @@ export class AntRules {
         ant.y = ny;
       }
 
-      const cell = grid.get(
-        ant.x,
-        ant.y,
-      );
+      const cell = grid.get(ant.x, ant.y);
 
       if (cell) {
         cell.ants++;
@@ -127,10 +117,7 @@ export class AntRules {
    * vizinhos válidos, qual célula do grid ocupar a seguir — a posição
    * da formiga continua inteira, célula a célula.
    */
-  private steerTowardTrail(
-    grid: Grid,
-    ant: Ant,
-  ): [number, number] {
+  private steerTowardTrail(grid: Grid, ant: Ant): [number, number] {
     const directions: [number, number][] = [
       [-1, -1],
       [-1, 0],
@@ -201,10 +188,7 @@ export class AntRules {
      * utiliza Random Walk.
      */
     if (candidates.length === 0) {
-      return this.randomWalk.move(
-        ant.x,
-        ant.y,
-      );
+      return this.randomWalk.move(ant.x, ant.y);
     }
 
     /*
@@ -221,7 +205,9 @@ export class AntRules {
      * a trilha é de fato forte — refletindo o termo de quimiotaxia
      * saturante do artigo (β/(α+βg)).
      */
-    const gradientLength = Math.sqrt(gradientX * gradientX + gradientY * gradientY);
+    const gradientLength = Math.sqrt(
+      gradientX * gradientX + gradientY * gradientY,
+    );
 
     let gradientDirX = 0;
     let gradientDirY = 0;
@@ -255,14 +241,10 @@ export class AntRules {
     const noiseY = (Math.random() * 2 - 1) * this.directionNoise;
 
     let dirX =
-      this.memoryWeight * ant.dirX +
-      (1 - this.memoryWeight) * signalX +
-      noiseX;
+      this.memoryWeight * ant.dirX + (1 - this.memoryWeight) * signalX + noiseX;
 
     let dirY =
-      this.memoryWeight * ant.dirY +
-      (1 - this.memoryWeight) * signalY +
-      noiseY;
+      this.memoryWeight * ant.dirY + (1 - this.memoryWeight) * signalY + noiseY;
 
     const dirLength = Math.sqrt(dirX * dirX + dirY * dirY);
 
@@ -285,8 +267,7 @@ export class AntRules {
     let bestScore = -Infinity;
 
     for (const candidate of candidates) {
-      const score =
-        candidate.unitX * dirX + candidate.unitY * dirY;
+      const score = candidate.unitX * dirX + candidate.unitY * dirY;
 
       if (score > bestScore) {
         bestScore = score;
@@ -301,42 +282,25 @@ export class AntRules {
    * Verifica se uma posição está dentro de
    * qualquer obstáculo existente.
    */
-  private isBlocked(
-    x: number,
-    y: number,
-  ): boolean {
-    return this.obstacles.some(
-      (obstacle) =>
-        obstacle.contains(x, y),
-    );
+  private isBlocked(x: number, y: number): boolean {
+    return this.obstacles.some((obstacle) => obstacle.contains(x, y));
   }
 
-  private getClosestPOI(
-    ant: Ant,
-  ): PointOfInterest | null {
-    if (
-      this.pointsOfInterest.length === 0
-    ) {
+  private getClosestPOI(ant: Ant): PointOfInterest | null {
+    if (this.pointsOfInterest.length === 0) {
       return null;
     }
 
-    let closest =
-      this.pointsOfInterest[0];
+    let closest = this.pointsOfInterest[0];
 
     let minDistance = Infinity;
 
     for (const poi of this.pointsOfInterest) {
-      const dx =
-        poi.x - ant.x;
+      const dx = poi.x - ant.x;
 
-      const dy =
-        poi.y - ant.y;
+      const dy = poi.y - ant.y;
 
-      const distance =
-        Math.sqrt(
-          dx * dx +
-          dy * dy,
-        );
+      const distance = Math.sqrt(dx * dx + dy * dy);
 
       if (distance < minDistance) {
         minDistance = distance;
@@ -347,78 +311,44 @@ export class AntRules {
     return closest;
   }
 
-  private depositPheromone(
-    grid: Grid,
-  ) {
-    for (
-      let x = 0;
-      x < grid.rows;
-      x++
-    ) {
-      for (
-        let y = 0;
-        y < grid.cols;
-        y++
-      ) {
-        const cell =
-          grid.get(x, y);
+  private depositPheromone(grid: Grid) {
+    for (let x = 0; x < grid.rows; x++) {
+      for (let y = 0; y < grid.cols; y++) {
+        const cell = grid.get(x, y);
 
         if (cell) {
-          cell.pheromone +=
-            this.lambda * cell.ants;
+          cell.pheromone += this.lambda * cell.ants;
         }
       }
     }
   }
 
-  private diffusePheromone(
-    grid: Grid,
-  ) {
+  private diffusePheromone(grid: Grid) {
     const next = Array.from(
       {
         length: grid.rows,
       },
-      () =>
-        new Array(
-          grid.cols,
-        ).fill(0),
+      () => new Array(grid.cols).fill(0),
     );
 
-    for (
-      let x = 0;
-      x < grid.rows;
-      x++
-    ) {
-      for (
-        let y = 0;
-        y < grid.cols;
-        y++
-      ) {
-        const cell =
-          grid.get(x, y);
+    for (let x = 0; x < grid.rows; x++) {
+      for (let y = 0; y < grid.cols; y++) {
+        const cell = grid.get(x, y);
 
         if (!cell) {
           continue;
         }
 
-        const g =
-          cell.pheromone;
+        const g = cell.pheromone;
 
         const laplacian =
-          (grid.get(x + 1, y)
-            ?.pheromone ?? g) +
-          (grid.get(x - 1, y)
-            ?.pheromone ?? g) +
-          (grid.get(x, y + 1)
-            ?.pheromone ?? g) +
-          (grid.get(x, y - 1)
-            ?.pheromone ?? g) -
+          (grid.get(x + 1, y)?.pheromone ?? g) +
+          (grid.get(x - 1, y)?.pheromone ?? g) +
+          (grid.get(x, y + 1)?.pheromone ?? g) +
+          (grid.get(x, y - 1)?.pheromone ?? g) -
           4 * g;
 
-        let value =
-          g +
-          this.D * laplacian -
-          this.evaporation * g;
+        let value = g + this.D * laplacian - this.evaporation * g;
 
         if (value < 0) {
           value = 0;
@@ -428,22 +358,12 @@ export class AntRules {
       }
     }
 
-    for (
-      let x = 0;
-      x < grid.rows;
-      x++
-    ) {
-      for (
-        let y = 0;
-        y < grid.cols;
-        y++
-      ) {
-        const cell =
-          grid.get(x, y);
+    for (let x = 0; x < grid.rows; x++) {
+      for (let y = 0; y < grid.cols; y++) {
+        const cell = grid.get(x, y);
 
         if (cell) {
-          cell.pheromone =
-            next[x][y];
+          cell.pheromone = next[x][y];
         }
       }
     }
