@@ -291,6 +291,12 @@ export interface TrialResult extends MillRunSummary {
   // no teste A, se o mill semeado ainda existe no fim
   lateRotating: number;
 
+  // fração dos ticks rotacionais em que o círculo do mill (centroide ±
+  // raio médio) chega a menos de 3 células de uma parede: mills "presos" à
+  // borda da arena, sobretudo à parede vento abaixo, são artefato do grid
+  // fechado e não efeito do vento sobre as trilhas
+  wallMill: number;
+
   // médias ao longo do último quarto da corrida
   following: number;
   crowded: number;
@@ -308,6 +314,7 @@ export function runTrial(options: TrialOptions): TrialResult {
 
   const lateStart = Math.floor((3 * ticks) / 4);
   let lateRotatingTicks = 0;
+  let wallMillTicks = 0;
   let followingSum = 0;
   let crowdedSum = 0;
   let lateSamples = 0;
@@ -321,6 +328,18 @@ export function runTrial(options: TrialOptions): TrialResult {
     const snapshot = simulation.metrics.measure(simulation.ants);
 
     nearWallSum += nearWallFraction(simulation.ants, simulation.grid);
+
+    if (snapshot.rotating) {
+      const { centerX, centerY, meanRadius } = snapshot;
+      const clearance = Math.min(
+        centerX - meanRadius,
+        centerY - meanRadius,
+        simulation.grid.rows - (centerX + meanRadius),
+        simulation.grid.cols - (centerY + meanRadius),
+      );
+
+      wallMillTicks += clearance < 3 ? 1 : 0;
+    }
 
     if (tick >= lateStart) {
       lateRotatingTicks += snapshot.rotating ? 1 : 0;
@@ -349,6 +368,8 @@ export function runTrial(options: TrialOptions): TrialResult {
     windStrength: options.windStrength,
     seed: options.seed,
     millFormed: summary.maxEpisodeRotations >= WIND_EXPERIMENT.minRotations,
+    wallMill:
+      summary.rotatingTicks > 0 ? wallMillTicks / summary.rotatingTicks : 0,
     lateRotating:
       ticks > lateStart ? lateRotatingTicks / (ticks - lateStart) : 0,
     following: lateSamples > 0 ? followingSum / lateSamples : 0,

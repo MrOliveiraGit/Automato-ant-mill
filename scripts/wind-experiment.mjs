@@ -13,13 +13,21 @@ import {
   format,
   meanAndError,
   millCount,
+  millRadius,
   oneOf,
+  wallMill,
   option,
   options,
   parseAssignment,
   positiveInteger,
   withSimulation,
 } from "./common.mjs";
+
+function firstRotating(trials) {
+  const first = trials.map((t) => t.firstRotatingTick).filter((t) => t !== null);
+
+  return first.length > 0 ? format(meanAndError(first), 0) : "—";
+}
 
 await withSimulation(
   async ({ WIND_EXPERIMENT, OBSTACLE_LAYOUTS, SCENARIOS, DEFAULT_ANT_RULES, runWindExperiment }) => {
@@ -67,9 +75,13 @@ await withSimulation(
         wind: preset.name,
         strength: preset.strength,
         mills: millCount(trials),
+        "first rotating tick": firstRotating(trials),
         "rotating % ticks": format(meanAndError(trials.map((t) => (100 * t.rotatingTicks) / t.ticks))),
-        "longest episode": format(meanAndError(trials.map((t) => t.longestEpisodeTicks))),
-        "max rotations": format(meanAndError(trials.map((t) => t.maxEpisodeRotations)), 2),
+        "late rotating %": format(meanAndError(trials.map((t) => 100 * t.lateRotating))),
+        "max rotations": format(meanAndError(trials.map((t) => t.maxEpisodeRotations)), 1),
+        "mill radius": millRadius(trials),
+        "wall mill %": wallMill(trials),
+        "late following %": format(meanAndError(trials.map((t) => 100 * t.following))),
         "% ants near walls": format(meanAndError(trials.map((t) => 100 * t.meanNearWall))),
         "pheromone min/max": `${Math.min(...trials.map((t) => t.minPheromone)).toFixed(2)} / ${Math.max(...trials.map((t) => t.maxPheromone)).toFixed(1)}`,
       })),

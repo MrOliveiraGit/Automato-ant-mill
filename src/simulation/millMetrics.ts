@@ -68,6 +68,10 @@ export interface MillRunSummary {
 
   // primeiro tick em estado rotacional (null se nunca entrou)
   firstRotatingTick: number | null;
+
+  // raio médio dos participantes nos ticks em estado rotacional (0 se nunca
+  // entrou): separa mills de verdade de bolinhas girando num raio mínimo
+  meanRotatingRadius: number;
 }
 
 function wrapAngle(angle: number): number {
@@ -110,6 +114,7 @@ export class MillMetrics {
   private maxParticipants = 0;
   private orderSum = 0;
   private firstRotatingTick: number | null = null;
+  private rotatingRadiusSum = 0;
 
   constructor(private settings: MillMetricsSettings) {}
 
@@ -155,6 +160,10 @@ export class MillMetrics {
       maxParticipants: this.maxParticipants,
       meanOrder: this.tick > 0 ? this.orderSum / this.tick : 0,
       firstRotatingTick: this.firstRotatingTick,
+      meanRotatingRadius:
+        this.rotatingTicks > 0
+          ? this.rotatingRadiusSum / this.rotatingTicks
+          : 0,
     };
   }
 
@@ -315,6 +324,7 @@ export class MillMetrics {
 
     this.rotatingTicks++;
     this.firstRotatingTick ??= this.tick - 1;
+    this.rotatingRadiusSum += snapshot.meanRadius;
     this.longestEpisodeTicks = Math.max(
       this.longestEpisodeTicks,
       this.episodeTicks,

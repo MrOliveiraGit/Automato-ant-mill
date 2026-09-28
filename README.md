@@ -307,7 +307,8 @@ spontaneous emergence of an ant mill?**
 Wind here is an external perturbation of the *pheromone field only*. Ants
 are never pushed by it, never told to rotate, and no rule mentions
 obstacles, mills or the wind direction. The only way the wind reaches an
-ant is through the values of `Cell.pheromone` its antennae read. If rotation appears, it has to come out of this chain:
+ant is through the values of `Cell.pheromone` its antennae read. If
+rotation appears, it has to come out of this chain:
 
 ```
 wind → advection of g → displaced/distorted trails → changed local gradient
@@ -473,10 +474,11 @@ random walkers:
 - **Partial:** mills with radius ≥ 20 are only partly detected. A
   sustained non-rotating clump is correctly *not* reported as a mill.
 
-The calibration predates the current movement rule; the rendered runs of
-the new rule (single large loops of radius 15–30) are detected, but the
-`random` scenario also produces occasional tight balls of ants circling at
-radius ~4 that count as mills too.
+The calibration predates the current movement rule. With it, typical mills
+have a mean radius of 12–28 cells and are detected; the `random` scenario
+also produces occasional tight balls circling at radius ~4, which count as
+mills too. The runners report the mean mill radius and the share of
+rotating time spent touching a wall, so both can be checked.
 
 ### Running comparisons
 
@@ -499,6 +501,62 @@ min/max pheromone seen, as a numerical sanity check. The runner loads the
 TypeScript directly through Vite's SSR loader, so it needs no extra
 dependencies or build step.
 
+### Results with the army-ant movement
+
+Crosswind `[1, 0]` (downward on screen), no obstacles, paired seeds. "Lost /
+gained" counts the seeds whose mill outcome flipped relative to no wind;
+*p* is an exact McNemar test on those pairs. "Wall mill" is the share of
+rotating time during which the mill (centroid ± mean radius) comes within
+3 cells of an arena wall. Mean ± standard error.
+
+**E1 — does wind destroy an existing mill?** (`ring`, 20 runs × 2000 ticks)
+
+| Wind     | Mill (≥ 1 rotation) | Rotating, last quarter | Rotations  | Ants near walls |
+| -------- | ------------------- | ---------------------- | ---------- | --------------- |
+| none     | 20/20               | 100%                   | 27.6       | 0%              |
+| weak     | 20/20               | 43 ± 7%                | 14.3       | 10%             |
+| moderate | 20/20               | 33 ± 5%                | 4.2        | 15%             |
+| strong   | 5/20 (p < 0.001)    | 6 ± 3%                 | 0.7        | 19%             |
+
+Wind wears a mill down monotonically: the seeded ring is carried downwind,
+deforms and breaks up; strong wind destroys it within a few hundred ticks.
+
+**E2 — emergence at the default settings** (`random`, 40 runs × 3000 ticks)
+
+| Wind     | Mills  | Lost / gained, p | Rotating % of ticks (paired Δ) | Mill radius | Wall mill |
+| -------- | ------ | ---------------- | ------------------------------ | ----------- | --------- |
+| none     | 33/40  |                  | 46 ± 4                         | 23 ± 1      | 42 ± 5%   |
+| weak     | 39/40  | 1 / 7, 0.07      | 45 ± 2 (−1 ± 5)                | 15 ± 0.4    | 61 ± 3%   |
+| moderate | 37/40  | 3 / 7, 0.34      | 30 ± 2 (−16 ± 5)               | 13 ± 0.5    | 58 ± 2%   |
+| strong   | 10/40  | 27 / 4, < 0.001  | 9 ± 1 (−37 ± 4)                | 12 ± 0.6    | 62 ± 2%   |
+
+**E3 — emergence where mills are rare** (`random`, `turnNoise` = 0.3, 40
+runs × 3000 ticks)
+
+| Wind     | Mills  | Lost / gained, p | Rotating % of ticks (paired Δ) | Mill radius | Wall mill |
+| -------- | ------ | ---------------- | ------------------------------ | ----------- | --------- |
+| none     | 21/40  |                  | 23 ± 4                         | 22 ± 1.5    | 38 ± 5%   |
+| weak     | 29/40  | 4 / 12, 0.08     | 19 ± 2 (−4 ± 4)                | 16 ± 0.6    | 71 ± 4%   |
+| moderate | 16/40  | 12 / 7, 0.36     | 6 ± 1 (−16 ± 4)                | 16 ± 1.0    | 75 ± 4%   |
+| strong   | 0/40   | 21 / 0, < 0.001  | 0.3 ± 0.1 (−22 ± 4)            | 28 ± 1.1    | 90 ± 5%   |
+
+What this does and doesn't show:
+
+- **Strong wind suppresses mills** in every setting, and moderate wind cuts
+  the time spent rotating by about a third to two thirds.
+- **Weak wind makes a mill episode more likely** — in both E2 and E3, and
+  pooled over both (5 lost / 19 gained) *p* ≈ 0.007. But those mills are
+  smaller (radius ~15 instead of ~23) and shorter-lived, and the total time
+  spent rotating doesn't increase. Wind produces *more, briefer, smaller*
+  mills, not more milling.
+- **The arena walls are involved in most of it.** Even without wind, mills
+  of radius ~23 in a 100-cell arena touch a wall during ~40% of their
+  rotating time; under wind that rises to 60–90%, with the colony pushed
+  against the downwind wall. So the weak-wind increase can't yet be
+  attributed to wind acting on trails rather than to loops pinned against
+  the downwind wall. Separating the two needs an arena without walls
+  (periodic boundaries) or one much larger than a mill.
+
 ## What's still approximate
 
 Worth stating plainly, since it shapes how far this simulation can be
@@ -517,21 +575,23 @@ pushed:
   derived from the paper's equations.
 - The arena is a closed box with reflecting walls and the ants are an
   isolated group with nowhere to go — the situation real mills occur in,
-  but it makes mills common (≈ 90% of runs). Loops are sometimes shaped by
-  the arena walls, and the minimum turning radius `speed/maxTurn` = 2 cells
+  but it makes mills common (≈ 80–90% of runs). The arena is also small
+  for the mills it produces: even without wind, a mill touches a wall
+  during ~40% of its rotating time. The minimum turning radius `speed/maxTurn` = 2 cells
   allows tight balls of circling ants that are smaller than real mills.
 - Ants don't exclude each other: any number can share a cell.
 
 For the wind experiment specifically:
 
 - **The arena is bounded, and a steady wind carries the whole trail system
-  downwind** (measured with the earlier movement rule; with the current one,
-  12–18% of ants sit near the walls under wind, against ~1% without). An ant sitting on its own trail sees more pheromone on its
-  downwind neighbours, because the plume streams that way. It follows that
+  downwind.** With the current movement 15–20% of ants sit within 2 cells
+  of a wall under wind, against ~1% without, and 60–90% of windy mill time
+  is spent touching a wall (see the results above). An ant on a trail
+  senses more pheromone downwind, because the plume streams that way. It follows that
   gradient, deposits there, and repeats. Ants plus pheromone therefore drift
-  at roughly the wind speed until most of the colony is pressed against the
-  downwind wall. With the defaults that takes on the order of `50 / v`
-  ticks: ~1000 weak, ~350 moderate, ~150 strong. This transport is an
+  downwind until they reach the wall (with the earlier movement rule most
+  of the colony ended pressed against it after roughly `50 / v` ticks).
+  This transport is an
   emergent result, but the wall it ends at is an artifact. Watch
   `% ants near walls` before interpreting anything late in a windy run.
 - Before reaching the wall, a crosswind breaks the two continuous lanes up

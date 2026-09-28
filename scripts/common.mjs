@@ -102,6 +102,20 @@ export function millCount(trials) {
   return `${mills}/${trials.length} [${(100 * low).toFixed(0)}–${(100 * high).toFixed(0)}%]`;
 }
 
+// mean radius while rotating, over the runs that rotated at all
+export function millRadius(trials) {
+  const radii = trials.filter((t) => t.rotatingTicks > 0).map((t) => t.meanRotatingRadius);
+
+  return radii.length > 0 ? format(meanAndError(radii)) : "—";
+}
+
+// share of rotating time with the mill touching a wall, over runs that rotated
+export function wallMill(trials) {
+  const shares = trials.filter((t) => t.rotatingTicks > 0).map((t) => 100 * t.wallMill);
+
+  return shares.length > 0 ? format(meanAndError(shares)) : "—";
+}
+
 // runs `body` with the simulation module loaded, then shuts Vite down
 export async function withSimulation(body) {
   const server = await createServer({
