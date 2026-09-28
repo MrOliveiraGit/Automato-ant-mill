@@ -22,7 +22,12 @@ npm run preview     # preview the production build
 npm run format      # prettier --write src
 npm run movement    # headless tests of the base movement (see below)
 npm run experiment  # headless batch runs of the wind experiment (see below)
+npm run deploy      # build and publish the site to GitHub Pages (gh-pages branch)
 ```
+
+Online: <https://mroliveiragit.github.io/Automato-ant-mill/> (simulation) and
+<https://mroliveiragit.github.io/Automato-ant-mill/report> (report). They
+update only when `npm run deploy` is run.
 
 Open the page, then:
 

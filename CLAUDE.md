@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run dev` — start the Vite dev server (serves `index.html` / `src/index.ts`, and `/report`: `report.html` + `src/report.ts` render `REPORT.md` with marked + KaTeX — update REPORT.md's timeline and results when adding commits or experiments).
 - `npm run build` — Vite production build, with no type checking (output would go to `dist/`, but see note below).
 - `npx tsc --noEmit` — the only type check available (no npm script for it). It currently passes cleanly, so run it after TypeScript changes.
-- `npm run preview` — preview the production build.
+- `npm run preview` — preview the production build (`vite.config.ts` builds both `index.html` and `report.html`, with relative `base: "./"`).
+- `npm run deploy` — builds and commits `dist/` to the `gh-pages` branch through a temporary git worktree, then pushes it (`scripts/deploy-pages.mjs`); GitHub Pages serves that branch at https://mroliveiragit.github.io/Automato-ant-mill/. The site only changes when this is run.
 - `npm run format` — format `src` with Prettier. The config file is misspelled `.prittierc`, so Prettier ignores it and uses its defaults (2-space indent, trailing commas, 80 print width) — which is what the code actually follows. `scripts/` isn't covered by this command.
 - `npm run movement -- --scenario random|column|ring|trails|classic --runs N --ticks N [--set key=v] [--sweep key=v1,v2 ...] [--wind S] [--layout ...] [--json]` — headless tests of the base movement in a neutral arena (`scripts/movement-tests.mjs`); `--sweep` builds a cartesian grid over `AntRulesSettings` keys. Roughly 1 s per 1000 ticks per run.
 - `npm run experiment -- --runs N --ticks N --seed N --layout none|gap|block [--scenario trails] [--set key=v] [--json]` — wind presets × runs (`scripts/wind-experiment.mjs`).

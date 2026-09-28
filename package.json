@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "format": "prettier --write src",
     "experiment": "node scripts/wind-experiment.mjs",
-    "movement": "node scripts/movement-tests.mjs"
+    "movement": "node scripts/movement-tests.mjs",
+    "deploy": "node scripts/deploy-pages.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
