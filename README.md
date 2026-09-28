@@ -1,54 +1,58 @@
 # automato
 
-A TypeScript + Canvas ant-colony simulation. Ants forage toward a point of
-interest, lay pheromone as they go, and — when an obstacle blocks the way —
-can lock into the rotating **ant mill** ("death spiral") described in Li &
-Chen's paper on memory-reinforcement systems.
+A TypeScript + Canvas simulation of blind army ants. Every ant walks at
+constant speed, lays pheromone where it goes and steers toward the side of
+its two antennae that smells more trail. Nothing else — no target, no
+random-walk phases, no rule that mentions rotation — and yet, in a closed
+arena, the ants merge into columns, the columns close into loops, and the
+colony ends up in the rotating **ant mill** ("death spiral") described in Li
+& Chen's paper on memory-reinforcement systems.
 
-The page currently opens on an experiment that asks whether **wind blowing
-the pheromone trails around can make an ant mill emerge on its own** — see
+On top of that base movement sits an experiment asking whether **wind
+blowing the pheromone trails around changes how mills form** — see
 [The wind experiment](#the-wind-experiment).
 
 ## Running it
 
 ```
 npm run dev         # start the Vite dev server
-npm run build       # production build
+npm run build       # production build (no type checking)
+npx tsc --noEmit    # type check
 npm run preview     # preview the production build
 npm run format      # prettier --write src
+npm run movement    # headless tests of the base movement (see below)
 npm run experiment  # headless batch runs of the wind experiment (see below)
 ```
 
 Open the page, then:
 
-- **Left-click** the canvas to drop a `PointOfInterest` (food).
+- `/?scenario=random|column|ring|trails|classic` picks the initial
+  condition (default `random`, see [Scenarios](#scenarios)).
 - **Right-click** to drop a rectangular `Obstacle`.
 - **1 / 2 / 3 / 4** — restart from the same initial condition with no /
   weak / moderate / strong wind. **R** restarts without changing the wind.
-  POIs and obstacles you placed survive restarts, so every wind level is
-  compared on the same layout.
-- Open `/?scenario=classic` for the original setup: ants in a corner, no
-  seeded trails.
+  Obstacles you placed survive restarts, so every wind level is compared on
+  the same layout.
 
 There's no test suite or linter configured in this project.
 
 ## What happens on screen
 
-In the classic scenario, two hundred ants spawn in a corner of a 100×100 grid. Every 100ms the
-simulation ticks: ants move, deposit pheromone, and the pheromone field
-diffuses and evaporates across the grid. The same per-tick rule produces
-different emergent behavior depending on what's on the grid:
+Two hundred ants in a 100×100 arena; every 100 ms the simulation ticks:
+ants turn and step, deposit pheromone, and the pheromone field diffuses and
+evaporates. Starting from ants scattered at random with no pheromone at all
+(`random`):
 
-1. **No goal yet** — ants explore via random walk and Lévy flights. No
-   trail-following happens, so the spawn cluster can't collapse in on itself
-   before you've placed anything.
-2. **POI placed** — ants blend pheromone-gradient following with a pull
-   toward the point of interest, converging on it.
-3. **Path blocked** — an obstacle severs the direct route. Ants deflect
-   along its edge instead of stopping.
-4. **Mill forms** — memory (a persisted heading) plus reinforcement (the
-   trail itself) can lock a subset of ants into a rotating loop around the
-   obstacle.
+1. **Trails** — within a hundred ticks, ants that cross each other's paths
+   start following them, and the arena fills with winding single-file
+   columns.
+2. **Loops** — whenever a column's head runs into its own trail, the trail
+   becomes a closed loop that every ant on it keeps reinforcing.
+3. **Consolidation** — loops compete for ants; open trails and small loops
+   evaporate while a few loops keep growing.
+4. **Mill** — usually one large loop with most of the colony circling it,
+   sometimes with a column still feeding into it. It persists for thousands
+   of ticks.
 
 ## The paper, in two acts
 
@@ -82,32 +86,52 @@ proves it numerically stable.
 **Where this codebase sits.** This simulation keeps individual `Ant`
 agents — the very thing the paper's first attempt was rejected for. What it
 borrows is the *local force law* from the fluid model (the velocity
-equation above) and applies it per-agent: each ant carries its own heading
-and nudges it by the local pheromone gradient, rather than the codebase
-solving a true velocity field. It's a Lagrangian approximation of a
-Eulerian result — see [What's still approximate](#whats-still-approximate)
-for what that costs.
+equation above) and applies it per-agent. With constant speed `s`, only the
+part of `b∇g` perpendicular to the heading can change an ant's motion, so
+the law becomes a turning rate
+
+```
+dθ/dt = (b/s) · (∇g · n̂)        n̂ = the ant's left-hand normal
+```
+
+and `∇g · n̂` is exactly what an ant measures by comparing its left and right
+antennae. It's a Lagrangian approximation of a Eulerian result — see
+[What's still approximate](#whats-still-approximate) for what that costs.
+
+### What real army ants do, and why the movement is built this way
+
+Army ants are nearly blind and navigate by pheromone alone. They are almost
+always walking and rarely reverse. No individual knows where food or the
+nest is: each ant follows the trail laid by the ants ahead and lays trail
+itself as it walks. A mill (Beebe 1921; Schneirla 1944) happens when a group
+loses the main trail and the head of its column runs into its own tail —
+the closed loop then sustains itself because every ant keeps doing exactly
+what it always does.
+
+So the base movement is those rules and nothing more. An earlier version
+had ants wander (random walk + Lévy flights) until a point of interest was
+placed and then head for it; with a point attractor every heading points
+inward rather than along a loop, and no mill formed in any configuration.
+Those mechanisms were removed rather than kept as options — they're in the
+git history if a foraging layer is ever added back.
 
 ## Architecture
 
 ```mermaid
 graph LR
   index["index.ts<br/>canvas, clicks, keys, setInterval"]
-  runner["scripts/wind-experiment.mjs<br/>headless batch runs"]
-  experiment["windExperiment.ts<br/>parameters + createSimulation()"]
-  initial["initialConditions.ts<br/>CornerCluster, TwoWayTrails"]
+  runners["scripts/*.mjs<br/>headless batch runs"]
+  experiment["windExperiment.ts<br/>parameters, scenarios, createSimulation(), runTrial()"]
+  initial["initialConditions.ts<br/>RandomScatter, Column, Ring, TwoWayTrails, CornerCluster"]
   metrics["MillMetrics<br/>read-only observer"]
   grid["Grid + Cell<br/>pheromone field, ant density, draw()"]
   rules["AntRules<br/>update(grid) each tick"]
   wind["Wind"]
-  ant["Ant<br/>x, y, dirX/dirY, Lévy state"]
-  rw["RandomWalk"]
-  lf["LevyFlight"]
+  ant["Ant<br/>continuous x, y, heading"]
   obs["Obstacle"]
-  poi["PointOfInterest"]
 
   index --> experiment
-  runner --> experiment
+  runners --> experiment
   experiment --> initial
   experiment --> rules
   experiment --> metrics
@@ -116,10 +140,7 @@ graph LR
   rules --> grid
   rules --> ant
   rules --> wind
-  rules --> rw
-  rules --> lf
   rules --> obs
-  rules --> poi
   metrics --> ant
 ```
 
@@ -129,224 +150,154 @@ src/
   models/
     grid.ts                 Grid: 2D array of Cell, draw() (canvas optional, for headless runs)
     cell.ts                 pheromone, ants
-    ant.ts                  per-agent state
+    ant.ts                  continuous position + heading
     obstacle.ts             rectangle + contains() + draw()
-    pointOfInterest.ts      a target point + draw()
     wind.ts                 wind direction + strength → velocity
-  movement/
-    movement.ts             Movement interface
-    randomWalk.ts           uniform 4-direction step
-    levyFlight.ts           heavy-tailed run length
   rules/
     antsRules.ts            the simulation — see below
   simulation/
-    initialConditions.ts    InitialCondition + CornerCluster (classic) + TwoWayTrails (A↔B)
-    windExperiment.ts       all experiment parameters, createSimulation(), batch trials
+    initialConditions.ts    the scenarios' initial conditions
+    windExperiment.ts       all parameters, scenarios, createSimulation(), batch trials
     millMetrics.ts          ant-mill detector (observes, never steers)
     experimentOverlay.ts    wind arrow, A/B markers, mill marker
 scripts/
+  common.mjs                argument parsing, statistics, Vite SSR loading
+  movement-tests.mjs        npm run movement
   wind-experiment.mjs       npm run experiment
 ```
 
-`AntRules` is the only class that touches every other model. It's a good
-starting point when reading the code.
+### The grid, the cell and the ant
 
-### The grid & the cell
+`Grid` owns a plain 2D array of `Cell` — the pheromone field and the
+per-cell ant count. `Grid.get(x, y)` is bounds-checked and returns
+`undefined` off the edge. The coordinate convention runs through the whole
+codebase: `x` is the row, `y` is the column, and every `draw()` flips them
+for canvas pixels (`pixelX = y*cellSize`, `pixelY = x*cellSize`).
 
-`Grid` owns a plain 2D array of `Cell` — the one piece of genuinely shared,
-mutable state everything else reads and writes. `Grid.get(x, y)` is
-bounds-checked and returns `undefined` off the edge, so every caller
-(movement, pheromone diffusion) gets free boundary handling instead of
-hand-rolled range checks.
-
-```ts
-export class Cell {
-  public pheromone: number = 0; // trail concentration, decays/diffuses
-  public ants: number = 0;      // how many ants are in this cell right now
-  constructor(
-    public readonly x: number,
-    public readonly y: number,
-  ) {}
-}
-```
-
-The coordinate convention runs through the whole codebase: `x` is the row,
-`y` is the column. `Grid.draw()` flips them for canvas pixels
-(`pixelX = y*cellSize`, `pixelY = x*cellSize`), and every other `draw()`
-method (obstacle, POI) repeats the same flip so everything lines up.
-
-### The ant
-
-An `Ant` is nothing but state — all the decision-making lives in
-`AntRules`. Position stays plain integer grid cells; the one thing that
-isn't discrete is `dirX`/`dirY`, a small persisted heading vector that's the
-entire mechanism behind "memory."
-
-```ts
-export class Ant {
-  public levyRemainingSteps = 0;
-  public levyDirectionX = 0;
-  public levyDirectionY = 0;
-
-  // persisted heading (blends memory + reinforcement)
-  public dirX: number;
-  public dirY: number;
-
-  constructor(public x: number, public y: number) {
-    const angle = Math.random() * Math.PI * 2;
-    this.dirX = Math.cos(angle);
-    this.dirY = Math.sin(angle);
-  }
-}
-```
-
-`dirX`/`dirY` start as a random unit vector so an ant has *some* heading
-before it ever follows a trail — otherwise the first blend in
-`steerTowardTrail` would have nothing to persist.
-
-### Movement strategies
-
-A one-method interface, `move(x, y): [number, number]`, with two
-implementations `AntRules` falls back to whenever an ant *isn't* actively
-following a trail:
-
-- **RandomWalk** picks one of four orthogonal directions uniformly. No
-  state, no memory — the "just wander" case.
-- **LevyFlight** commits to a random direction for a heavy-tailed number of
-  steps, drawn from `length = random()^(-1/(μ-1))` and capped at
-  `maxLength` (μ = 1.5, cap = 20). This is the classic Lévy-walk foraging
-  pattern — long, straight, infrequent excursions mixed with local search —
-  and it's an addition on top of the paper, which doesn't use Lévy flight
-  at all.
+Ants are **not** on the lattice. An `Ant` has a continuous position `x, y`
+(in cells; it occupies cell `floor(x), floor(y)`) and a continuous `heading`
+in radians. The heading is the ant's entire memory: it only changes through
+the turn and the noise of each tick. The grid is still a cellular automaton
+for the chemistry; continuous positions are what let ants trace smooth
+curves, and therefore rings, instead of 8-direction staircases.
 
 ### AntRules — the core loop
 
-Four steps, every tick, over every cell and every ant:
+Four steps, every tick:
 
 ```ts
 update(grid: Grid): void {
   this.clearAntDensity(grid);   // zero cell.ants everywhere
-  this.moveAnts(grid);          // decide + apply each ant's next cell
-  this.depositPheromone(grid);  // cell.pheromone += λ · cell.ants
+  this.moveAnts(grid);          // sense, turn, step
+  this.depositPheromone(grid);  // cell.pheromone += deposit · cell.ants
   this.diffusePheromone(grid);  // diffusion + wind advection + evaporation
 }
 ```
 
+**`moveAnts`**, for every ant:
+
+1. **Sense.** Two antennae sit `sensorDistance` cells ahead at
+   `±sensorAngle` from the heading. Each reads the pheromone there,
+   interpolated bilinearly between cell centres (without it the difference
+   jumps in steps whenever an antenna crosses a cell border). Nothing behind
+   the ant is sensed — its own fresh trail can't pull it backward.
+2. **Turn.**
+
+   ```ts
+   const pull = (turnGain * (left - right)) / (turnSaturation + left + right);
+   const turn = clamp(pull, -maxTurn, maxTurn);
+   ant.heading += turn + turnNoise * gaussian();
+   ```
+
+   The turn is *proportional* to the difference: a faint trail bends the
+   path a little and a strong one a lot, which is what lets heading
+   persistence and the trail's sideways pull balance on a ring. The
+   denominator is the paper's saturating `β/(α+βg)`: below
+   `turnSaturation` a difference counts for little, so trace pheromone is
+   treated as noise.
+3. **Step** `speed` cells along the new heading. Ants never stop. Grid walls
+   and obstacles are axis-aligned rectangles, so a collision is a specular
+   reflection: the heading component that would cross the wall is flipped.
+   Ants bounce off walls rather than sliding along them, so nothing drags
+   them into loops around an obstacle or the arena.
+
+The rule is symmetric between left and right, so nothing favours either
+sense of rotation — a mill has to come from a trail that happens to close.
+
 `diffusePheromone` is a genuine finite-difference solver — for every cell it
-computes the four-neighbor Laplacian and the upwind wind term and applies
-`g += D·∇²g − v_wind·∇g − evaporation·g`, clamped at zero. This is the one
-part of the simulation that's a literal PDE integration, not an
-approximation of one. With no wind it is bit-for-bit the previous
-diffusion-only solver (see [Numerics](#numerics)).
-
-**`moveAnts`** picks a step per ant, per tick, in priority order:
-
-1. **Mid-Lévy-flight?** Keep going in the committed direction.
-2. **Otherwise, if a POI exists** (80% of ticks, `trailFollowChance`): call
-   `steerTowardTrail` (see below).
-3. **Otherwise** (20% of ticks, or always when there's no POI yet): a 1%
-   chance to start a fresh Lévy flight, else `RandomWalk`.
-
-> **Why gate on "a POI exists"?** Two hundred ants spawn already clustered.
-> If trail-following were active from tick zero, that cluster's own
-> pheromone would be enough for the ants to lock into a mill around
-> *themselves*, before anyone had placed a target. Restricting
-> trail-following to "there's an actual goal to chase" keeps the opening
-> seconds a plain, dispersing explore phase.
->
-> The `followTrailsWithoutPOI` constructor flag lifts this gate. The wind
-> experiment sets it, because there the ants start spread along seeded
-> trails rather than clustered, and those trails are exactly what they're
-> supposed to follow. Without it, ants would ignore the pheromone entirely
-> until a POI appeared, and wind would have nothing to act through.
-
-Whatever the source, the candidate move is rejected if it's off-grid or
-inside an `Obstacle` — the ant simply stays put for that tick and still
-gets counted into `cell.ants` at its current cell.
-
-### `steerTowardTrail`, in detail
-
-This one method is the entire ant-mill mechanism — the discrete, per-agent
-stand-in for the paper's `∂v/∂t + v·∇v = b∇g`. It runs in three stages.
-
-**1 — read the local pheromone gradient.** For each of the 8 neighboring
-cells that isn't blocked or off-grid, add its offset direction weighted by
-its pheromone concentration:
-
-```ts
-gradientX += unitX * cell.pheromone;
-gradientY += unitY * cell.pheromone;
-```
-
-**2 — saturate it, don't just normalize it.** The raw sum's *magnitude* is
-unbounded — it grows without limit wherever ants cluster, obstacle or not,
-and would silently drown out the fixed-size pull toward the POI. Fully
-normalizing to a unit vector fixes that but overcorrects: even a single
-faint trace of pheromone then pulls at full strength, which glues every ant
-into one rigid, indistinguishable block. The fix here is a saturating
-curve:
-
-```ts
-const scale = gradientLength / (this.gradientSaturation + gradientLength);
-gradientDirX = (gradientX / gradientLength) * scale;
-gradientDirY = (gradientY / gradientLength) * scale;
-```
-
-— which sits near 0 for weak, noisy pheromone and only approaches 1 where a
-trail is genuinely strong. It's a direct echo of the paper's own chemotaxis
-coefficient, β/(α+βg), which saturates with concentration rather than
-growing with it.
-
-**3 — blend with memory, then pick a neighbor.** The gradient and the POI
-direction are summed and re-normalized into one "signal" unit vector, then
-blended with the ant's *existing* heading — addition, not replacement, is
-what makes this memory rather than a fresh coin-flip every tick:
-
-```ts
-let dirX = this.memoryWeight * ant.dirX + (1 - this.memoryWeight) * signalX + noiseX;
-let dirY = this.memoryWeight * ant.dirY + (1 - this.memoryWeight) * signalY + noiseY;
-// normalize dirX, dirY back to unit length, store on ant.dirX/dirY
-
-let best = candidates[0], bestScore = -Infinity;
-for (const c of candidates) {
-  const score = c.unitX * dirX + c.unitY * dirY; // dot product = alignment
-  if (score > bestScore) { bestScore = score; best = c; }
-}
-return [best.x, best.y];
-```
-
-Because blocked neighbors were never added to `candidates`, an ant pressed
-against an obstacle automatically steps into whichever *open* cell best
-matches its heading — sliding tangentially along the wall instead of
-stalling — which is the specific behavior that lets a queue of ants curve
-into a loop instead of just piling up.
+computes the four-neighbour Laplacian and the upwind wind term and applies
+`g += D·∇²g − v_wind·∇g − evaporation·g`, clamped at zero (see
+[Numerics](#numerics)).
 
 ### Tunable constants
 
-These constants are the entire knob set for whether a mill forms, how tight
-it is, and how quickly ants find a POI. All live at the top of `AntRules`.
+All in `DEFAULT_ANT_RULES` (`src/rules/antsRules.ts`); `createSimulation`
+and both runners accept overrides.
 
-| Constant             | Value | Governs                                                          |
-| --------------------- | ----- | ----------------------------------------------------------------- |
-| `D`                   | 0.005 | Pheromone diffusion rate (the Laplacian term)                     |
-| `evaporation`         | 0.05  | Per-tick pheromone decay                                          |
-| `lambda`              | 0.2   | Pheromone deposited per ant occupying a cell                      |
-| `poiWeight`           | 2.0   | Strength of the pull toward the nearest point of interest         |
-| `gradientGain`        | 3.0   | Strength of the pull toward higher pheromone (the paper's *b*)    |
-| `gradientSaturation`  | 0.1   | Pheromone level at which gradient influence half-saturates        |
-| `directionNoise`      | 0.15  | Random perturbation added to heading each tick                    |
-| `memoryWeight`        | 0.5   | How much the old heading outweighs this tick's signal             |
-| `trailFollowChance`   | 0.8   | Fraction of non-Lévy ticks spent following the trail              |
+| Setting          | Default | Governs                                                           |
+| ---------------- | ------- | ----------------------------------------------------------------- |
+| `diffusion`      | 0.005   | Pheromone diffusion rate `D` (the Laplacian term)                 |
+| `evaporation`    | 0.05    | Per-tick pheromone decay `μ`                                      |
+| `deposit`        | 0.2     | Pheromone laid per ant per tick (`λ`)                             |
+| `speed`          | 1       | Walking speed, cells/tick                                         |
+| `sensorDistance` | 3       | How far ahead the antennae reach (cells)                          |
+| `sensorAngle`    | π/4     | Antenna angle either side of the heading                          |
+| `turnGain`       | 1       | `b`: turn per unit of normalized left–right difference (rad)      |
+| `turnSaturation` | 0.05    | `α`: pheromone level below which differences count for little     |
+| `maxTurn`        | 0.5     | Largest deterministic turn per tick (rad); min. radius `speed/maxTurn` |
+| `turnNoise`      | 0.1     | Standard deviation of the angular noise per tick (rad)            |
 
-None of these are derived from the paper — it proves a spiral solution is
-*stable* once it exists, not which parameters make one *form*. These values
-were reached by running the simulation headlessly for thousands of ticks
-and measuring outcomes (distance to POI, degrees rotated around an
-obstacle), not by solving the paper's equations directly.
+These are not derived from the paper, which proves a spiral is *stable* once
+it exists, not which parameters make one *form*. They were chosen by
+reasoning (e.g. a ring of radius `R` needs `maxTurn ≥ speed/R`) and checked
+by the sweeps below.
 
-The wind experiment's own parameters (wind, trails, metrics, run length)
-live together in `WIND_EXPERIMENT`, `WIND_PRESETS` and `OBSTACLE_LAYOUTS` in
-`src/simulation/windExperiment.ts` — see below.
+### Scenarios
+
+| Scenario  | Initial condition                                                         | Used for |
+| --------- | ------------------------------------------------------------------------- | -------- |
+| `random`  | Ants uniform over the arena, random headings, no pheromone                | Neutral test: do trails and mills emerge? |
+| `column`  | One pheromone trail from A to B with every ant on it heading toward B      | Test B: a column that loses its trail |
+| `ring`    | A pheromone ring (radius 15) with ants on it heading along the tangent     | Test A: can the rules sustain a mill? |
+| `trails`  | Two counter-flowing lanes A→B / B→A                                        | Wind experiment |
+| `classic` | Ants clustered in a corner, no pheromone                                   | The original setup |
+
+Headings seeded along a ring or lane are initial condition only; from tick 1
+every ant runs the same symmetric rule. Placement uses a seeded PRNG
+(`mulberry32`), so a given seed always starts from the same state; the
+dynamics stay stochastic (`Math.random`).
+
+### Testing the base movement
+
+```
+npm run movement -- --scenario ring   --runs 10               # Test A
+npm run movement -- --scenario random --runs 20 --ticks 3000  # Test B
+npm run movement -- --scenario random --runs 10 --ticks 3000 \
+  --sweep turnGain=0.5,1,2 --sweep turnNoise=0.05,0.1,0.2,0.3 # robustness
+```
+
+`--set key=value` fixes a setting, `--sweep key=v1,v2,…` sweeps it (several
+sweeps make a grid), `--wind S` adds wind, `--layout` adds obstacles,
+`--json` dumps per-run data. Every row uses the same seeds. Besides the mill
+columns (see [Detecting a mill](#detecting-a-mill)), the table reports, over
+the last quarter of each run, the fraction of ticks still rotating, the
+fraction of ants **following** (another ant within 3 cells ahead, heading
+the same way — single-file columns) and the fraction **crowded** (in cells
+holding ≥ 4 ants — clumps).
+
+Results with the defaults, no wind, no obstacles:
+
+- **Test A (ring, 10 × 2000 ticks):** the seeded mill survives in 10/10
+  runs, rotating for 100% of the last quarter with all 200 ants
+  participating (≈ 28 rotations). ("Crowded" is high here, ~50%, only
+  because 200 ants share a 94-cell ring.)
+- **Test B (random, 10 × 3000 ticks):** a mill forms in 10/10 runs, first
+  rotation after 510 ± 126 ticks, 73% of ants in columns at the end.
+  **(column):** 10/10, after 211 ± 36 ticks.
+- **Robustness:** mills form in 8–9 of 10 runs for every `turnGain` in
+  {0.5, 1, 2} with `turnNoise` ≤ 0.2. At `turnNoise` = 0.3 trail-following
+  breaks down (11–39% of ants in columns) and mills drop to 0–5 of 10 — the
+  noise level is the clearest control parameter for mill formation.
 
 ## The wind experiment
 
@@ -356,8 +307,7 @@ spontaneous emergence of an ant mill?**
 Wind here is an external perturbation of the *pheromone field only*. Ants
 are never pushed by it, never told to rotate, and no rule mentions
 obstacles, mills or the wind direction. The only way the wind reaches an
-ant is through the values of `Cell.pheromone` that `steerTowardTrail`
-reads. If rotation appears, it has to come out of this chain:
+ant is through the values of `Cell.pheromone` its antennae read. If rotation appears, it has to come out of this chain:
 
 ```
 wind → advection of g → displaced/distorted trails → changed local gradient
@@ -404,10 +354,8 @@ concentrations.
   to that limit, keeping its direction. Setting any wind strength can't
   destabilize the run: 3000-step stress tests with random deposits stay
   finite and ≥ 0, even for requested strengths of 10⁶.
-- **No wind = old behavior.** With `v = 0` the update is bit-for-bit the
-  previous solver. A seeded 1500-tick run of the classic scenario (POI and
-  obstacle included) reproduces `master` exactly, ant for ant and cell for
-  cell.
+- **No wind = no advection.** With `v = 0` the update is bit-for-bit the
+  diffusion-only solver.
 - **Boundaries.** Diffusion keeps its zero-flux edges. For the wind, clean
   air (g = 0) enters across the upwind edge and pheromone leaves freely
   across the downwind edge. Mass is otherwise conserved. Over 20 ticks, a
@@ -439,9 +387,9 @@ A <===================== B      lane 2, ants start heading toward A
 Each lane has concentration `trailStrength` on its axis, falling linearly
 to zero `trailWidth + 1` cells away. `Cell.pheromone` is a scalar, so a lane
 has no direction of its own. "A→B" versus "B→A" exists only in the ants'
-initial heading (`dirX/dirY`, their memory), with half the ants on each
+initial `heading` (their memory), with half the ants on each
 lane plus a small random angular jitter. All of this is initial condition,
-not behavior. From tick 1 the ants run the normal model. They wander,
+not behavior. From tick 1 the ants run the normal model. They
 reinforce the lanes or abandon them, and an unreinforced lane evaporates
 within a few seconds. Placement uses a seeded PRNG (`mulberry32`), so every
 wind level starts from exactly the same state for a given seed. The
@@ -461,6 +409,7 @@ All in `src/simulation/windExperiment.ts`:
 | `trails.trailWidth`           | 1                | Half-width of each lane (cells)                                      |
 | `trails.headingJitter`        | 0.3              | Max deviation (rad) of the initial heading from the lane direction   |
 | `layout`                      | `"none"`         | Obstacle layout: `none`, `gap` (between lanes), `block` (across both)|
+| `ring`, `column`              |                  | Geometry of the Test A / Test B initial conditions                   |
 | `numberOfAnts`, `seed`        | 200, 1           |                                                                      |
 | `ticksPerRun`, `minRotations` | 2000, 1          | Batch run length; rotations needed to count a run as "mill formed"   |
 
@@ -522,8 +471,12 @@ random walkers:
   scattered independent loops (mixed or same sense), and pure random
   walkers.
 - **Partial:** mills with radius ≥ 20 are only partly detected. A
-  sustained non-rotating clump (like ants piled on a POI) is correctly
-  *not* reported as a mill.
+  sustained non-rotating clump is correctly *not* reported as a mill.
+
+The calibration predates the current movement rule; the rendered runs of
+the new rule (single large loops of radius 15–30) are detected, but the
+`random` scenario also produces occasional tight balls of ants circling at
+radius ~4 that count as mills too.
 
 ### Running comparisons
 
@@ -531,8 +484,12 @@ The simulation is stochastic, so compare many runs, not one:
 
 ```
 npm run experiment -- --runs 20 --ticks 2000 --layout gap
+npm run experiment -- --scenario random --runs 20 --ticks 3000   # mills from scratch
 node scripts/wind-experiment.mjs --runs 20 --json > results.json   # per-run data
 ```
+
+`--scenario` defaults to `trails`; `--set key=value` overrides a movement
+setting as in `npm run movement`.
 
 Every wind level uses the same seeds (`seed … seed + runs − 1`), so the
 comparison is paired: identical initial conditions, independent dynamics.
@@ -553,17 +510,23 @@ pushed:
   individual-based style the paper's own Section 2 argues against; it's
   used here to keep this a cellular automaton with real per-ant agents, not
   to solve the PDEs directly.
-- Because of that, a persistent, indefinitely-stable mill isn't guaranteed
-  the way the paper's steady-state solution is — what actually happens is a
-  handful of ants partially or fully circling an obstacle for a while, with
-  real run-to-run variance.
-- Every constant above was found empirically by running the sim headlessly
-  and measuring outcomes, not derived from the paper's equations.
+- Because of that, a persistent mill isn't guaranteed the way the paper's
+  steady-state solution is: mills form, merge and occasionally break up,
+  with real run-to-run variance.
+- Every constant above was chosen by reasoning plus headless sweeps, not
+  derived from the paper's equations.
+- The arena is a closed box with reflecting walls and the ants are an
+  isolated group with nowhere to go — the situation real mills occur in,
+  but it makes mills common (≈ 90% of runs). Loops are sometimes shaped by
+  the arena walls, and the minimum turning radius `speed/maxTurn` = 2 cells
+  allows tight balls of circling ants that are smaller than real mills.
+- Ants don't exclude each other: any number can share a cell.
 
 For the wind experiment specifically:
 
 - **The arena is bounded, and a steady wind carries the whole trail system
-  downwind.** An ant sitting on its own trail sees more pheromone on its
+  downwind** (measured with the earlier movement rule; with the current one,
+  12–18% of ants sit near the walls under wind, against ~1% without). An ant sitting on its own trail sees more pheromone on its
   downwind neighbours, because the plume streams that way. It follows that
   gradient, deposits there, and repeats. Ants plus pheromone therefore drift
   at roughly the wind speed until most of the colony is pressed against the

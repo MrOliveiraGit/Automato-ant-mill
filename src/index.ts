@@ -1,6 +1,6 @@
-import { PointOfInterest } from "./models/pointOfInterest.js";
 import { Obstacle } from "./models/obstacle.js";
 import {
+  SCENARIOS,
   WIND_EXPERIMENT,
   WIND_PRESETS,
   createSimulation,
@@ -28,19 +28,18 @@ canvas.width = WIND_EXPERIMENT.cols * cellSize;
 canvas.height = WIND_EXPERIMENT.rows * cellSize;
 
 /*
- * ?scenario=classic volta ao cenário original: formigas num canto, sem
- * trilhas semeadas, e seguir trilha só depois de existir um POI.
+ * ?scenario=random|column|ring|trails|classic escolhe a condição inicial
+ * (ver SCENARIOS); o padrão é o ambiente neutro.
  */
+const requested = new URLSearchParams(location.search).get("scenario");
+
 const scenario: Scenario =
-  new URLSearchParams(location.search).get("scenario") === "classic"
-    ? "classic"
-    : "trails";
+  SCENARIOS.find((name) => name === requested) ?? "random";
 
 /*
- * POIs e obstáculos colocados com o mouse sobrevivem ao reinício, para que
- * as intensidades de vento sejam comparadas sobre a mesma configuração.
+ * Obstáculos colocados com o mouse sobrevivem ao reinício, para que as
+ * intensidades de vento sejam comparadas sobre a mesma configuração.
  */
-const placedPointsOfInterest: PointOfInterest[] = [];
 const placedObstacles: Obstacle[] = [];
 
 let presetIndex = 0;
@@ -56,7 +55,6 @@ const start = (): Simulation => {
     ctx,
     cellSize,
     obstacles: placedObstacles,
-    pointsOfInterest: placedPointsOfInterest,
   });
 };
 
@@ -70,20 +68,6 @@ function cellAt(event: MouseEvent): [number, number] {
     Math.floor((event.clientX - rect.left) / cellSize),
   ];
 }
-
-/*
- * Clique esquerdo → cria um POI
- */
-canvas.addEventListener("click", (event) => {
-  const [x, y] = cellAt(event);
-
-  console.log("POI:", { x, y });
-
-  const poi = new PointOfInterest(x, y);
-
-  placedPointsOfInterest.push(poi);
-  simulation.pointsOfInterest.push(poi);
-});
 
 /*
  * Clique direito → cria um obstáculo
@@ -133,8 +117,9 @@ function describe(snapshot: MillSnapshot): string {
 
   return [
     `Wind: ${WIND_PRESETS[presetIndex].name} — v = (${vx.toFixed(3)}, ${vy.toFixed(3)}) cells/tick`,
-    `  [1] no wind  [2] weak  [3] moderate  [4] strong  [R] restart   ` +
-      `scenario ${scenario}, seed ${WIND_EXPERIMENT.seed}, tick ${tick}`,
+    `  [1] no wind  [2] weak  [3] moderate  [4] strong  [R] restart  ` +
+      `[right-click] obstacle   seed ${WIND_EXPERIMENT.seed}, tick ${tick}`,
+    `Scenario: ${scenario}   (?scenario=${SCENARIOS.join("|")})`,
     `Mill: ${mill}`,
     `  looping ants ${snapshot.participants} (${snapshot.sense > 0 ? "counter-clockwise" : "clockwise"}), ` +
       `alignment ${snapshot.alignment.toFixed(2)}, order ${snapshot.order.toFixed(2)}, ` +
@@ -154,16 +139,14 @@ setInterval(() => {
 
   simulation.grid.draw();
 
-  for (const poi of simulation.pointsOfInterest) {
-    poi.draw(ctx, cellSize);
-  }
-
   for (const obstacle of simulation.obstacles) {
     obstacle.draw(ctx, cellSize);
   }
 
   if (scenario === "trails") {
     drawTrailEndpoints(ctx, cellSize, WIND_EXPERIMENT.trails);
+  } else if (scenario === "column") {
+    drawTrailEndpoints(ctx, cellSize, WIND_EXPERIMENT.column);
   }
 
   drawMillMarker(ctx, cellSize, snapshot);

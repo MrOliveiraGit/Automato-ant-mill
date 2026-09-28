@@ -5,6 +5,8 @@ export interface InitialCondition {
   initialize(grid: Grid, ants: Ant[]): void;
 }
 
+type BlockedTest = (x: number, y: number) => boolean;
+
 /*
  * mulberry32. Só as condições iniciais são semeadas — assim cada condição de
  * vento parte exatamente do mesmo estado — enquanto a dinâmica continua
@@ -24,9 +26,39 @@ function createSeededRandom(seed: number): () => number {
   };
 }
 
-function setHeading(ant: Ant, angle: number) {
-  ant.dirX = Math.cos(angle);
-  ant.dirY = Math.sin(angle);
+function isFree(grid: Grid, isBlocked: BlockedTest, x: number, y: number) {
+  return x >= 0 && y >= 0 && x < grid.rows && y < grid.cols && !isBlocked(x, y);
+}
+
+/*
+ * Formigas espalhadas uniformemente pela arena, direções aleatórias, sem
+ * feromônio: o teste mais neutro possível — qualquer trilha, coluna ou mill
+ * que apareça foi construído pelas próprias formigas.
+ */
+export class RandomScatter implements InitialCondition {
+  constructor(
+    private seed: number,
+    private isBlocked: BlockedTest = () => false,
+  ) {}
+
+  initialize(grid: Grid, ants: Ant[]): void {
+    const random = createSeededRandom(this.seed);
+
+    for (const ant of ants) {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const x = random() * grid.rows;
+        const y = random() * grid.cols;
+
+        if (isFree(grid, this.isBlocked, x, y)) {
+          ant.x = x;
+          ant.y = y;
+          break;
+        }
+      }
+
+      ant.heading = random() * Math.PI * 2;
+    }
+  }
 }
 
 /*
@@ -44,10 +76,73 @@ export class CornerCluster implements InitialCondition {
     const random = createSeededRandom(this.seed);
 
     for (const ant of ants) {
-      ant.x = Math.floor(random() * grid.rows * this.spawnWidth);
-      ant.y = Math.floor(random() * grid.cols * this.spawnHeight);
-      setHeading(ant, random() * Math.PI * 2);
+      ant.x = random() * grid.rows * this.spawnWidth;
+      ant.y = random() * grid.cols * this.spawnHeight;
+      ant.heading = random() * Math.PI * 2;
     }
+  }
+}
+
+export interface RingSettings {
+  // centro (linha, coluna) e raio do eixo do anel, em células
+  center: [number, number];
+  radius: number;
+
+  // feromônio no eixo do anel, caindo linearmente até a borda
+  strength: number;
+
+  // meia-largura do anel, em células
+  width: number;
+
+  // desvio angular máximo (rad) da direção inicial em relação à tangente
+  headingJitter: number;
+}
+
+/*
+ * Teste A: um mill já pronto — anel de feromônio com as formigas sobre ele,
+ * todas andando no mesmo sentido ao longo da tangente. Não pergunta se um
+ * mill surge, e sim se as regras de movimento conseguem sustentá-lo. O
+ * sentido do giro existe só na condição inicial; a partir do primeiro tick
+ * vale a regra simétrica de sempre.
+ */
+export class Ring implements InitialCondition {
+  constructor(
+    private settings: RingSettings,
+    private seed: number,
+    private isBlocked: BlockedTest = () => false,
+  ) {}
+
+  initialize(grid: Grid, ants: Ant[]): void {
+    const random = createSeededRandom(this.seed);
+    const { center, radius, strength, width, headingJitter } = this.settings;
+    const [cx, cy] = center;
+    const reach = width + 1;
+
+    for (let x = 0; x < grid.rows; x++) {
+      for (let y = 0; y < grid.cols; y++) {
+        const distance = Math.abs(
+          Math.hypot(x + 0.5 - cx, y + 0.5 - cy) - radius,
+        );
+
+        if (distance < reach && !this.isBlocked(x, y)) {
+          const cell = grid.get(x, y)!;
+          cell.pheromone = Math.max(
+            cell.pheromone,
+            strength * (1 - distance / reach),
+          );
+        }
+      }
+    }
+
+    ants.forEach((ant, index) => {
+      // espaçamento uniforme ao longo do anel, com um pouco de ruído
+      const angle = ((index + random()) / ants.length) * Math.PI * 2;
+      const r = radius + (random() * 2 - 1) * width;
+
+      ant.x = cx + r * Math.cos(angle);
+      ant.y = cy + r * Math.sin(angle);
+      ant.heading = angle + Math.PI / 2 + (random() * 2 - 1) * headingJitter;
+    });
   }
 }
 
@@ -69,6 +164,15 @@ export interface TrailSettings {
   headingJitter: number;
 }
 
+// o que uma pista precisa, sem a separação entre pistas do TwoWayTrails
+type LaneSettings = Pick<
+  TrailSettings,
+  "trailStrength" | "trailWidth" | "headingJitter"
+>;
+
+export type ColumnSettings = LaneSettings &
+  Pick<TrailSettings, "pointA" | "pointB">;
+
 interface Lane {
   fromX: number;
   fromY: number;
@@ -77,19 +181,51 @@ interface Lane {
 }
 
 /*
+ * Teste B: uma coluna de correição — uma única pista de feromônio de A até
+ * B com todas as formigas sobre ela, andando de A para B. A trilha acaba em
+ * B; o que a coluna faz depois disso (se dispersa, forma novas trilhas, se
+ * fecha num mill) é resultado da regra de movimento.
+ */
+export class Column implements InitialCondition {
+  constructor(
+    private settings: ColumnSettings,
+    private seed: number,
+    private isBlocked: BlockedTest = () => false,
+  ) {}
+
+  lane(): Lane {
+    const [fromX, fromY] = this.settings.pointA;
+    const [toX, toY] = this.settings.pointB;
+
+    return { fromX, fromY, toX, toY };
+  }
+
+  initialize(grid: Grid, ants: Ant[]): void {
+    const random = createSeededRandom(this.seed);
+    const lane = this.lane();
+
+    layLane(grid, lane, this.settings, this.isBlocked);
+
+    for (const ant of ants) {
+      placeOnLane(grid, ant, lane, this.settings, random, this.isBlocked);
+    }
+  }
+}
+
+/*
  * Duas pistas paralelas de feromônio entre A e B, com as formigas
  * distribuídas sobre elas. `Cell.pheromone` é escalar, então uma pista não
  * tem sentido próprio: "A→B" e "B→A" são faixas espacialmente separadas, e
- * o sentido existe só na direção memorizada inicial (dirX/dirY) de cada
- * formiga. Isso é condição inicial, não regra de movimento — a partir do
- * primeiro tick as formigas seguem o modelo de sempre e a trilha semeada
- * evapora se não for reforçada.
+ * o sentido existe só na direção inicial (heading) de cada formiga. Isso é
+ * condição inicial, não regra de movimento — a partir do primeiro tick as
+ * formigas seguem o modelo de sempre e a trilha semeada evapora se não for
+ * reforçada.
  */
 export class TwoWayTrails implements InitialCondition {
   constructor(
     private settings: TrailSettings,
     private seed: number,
-    private isBlocked: (x: number, y: number) => boolean = () => false,
+    private isBlocked: BlockedTest = () => false,
   ) {}
 
   lanes(): [Lane, Lane] {
@@ -125,59 +261,78 @@ export class TwoWayTrails implements InitialCondition {
     const lanes = this.lanes();
 
     for (const lane of lanes) {
-      this.layLane(grid, lane);
+      layLane(grid, lane, this.settings, this.isBlocked);
     }
 
     ants.forEach((ant, index) => {
-      const lane = lanes[index % 2];
-      this.placeOnLane(grid, ant, lane, random);
+      placeOnLane(
+        grid,
+        ant,
+        lanes[index % 2],
+        this.settings,
+        random,
+        this.isBlocked,
+      );
     });
   }
+}
 
-  private layLane(grid: Grid, lane: Lane) {
-    const reach = this.settings.trailWidth + 1;
+function layLane(
+  grid: Grid,
+  lane: Lane,
+  settings: LaneSettings,
+  isBlocked: BlockedTest,
+) {
+  const reach = settings.trailWidth + 1;
 
-    for (let x = 0; x < grid.rows; x++) {
-      for (let y = 0; y < grid.cols; y++) {
-        const distance = distanceToLane(x, y, lane);
+  for (let x = 0; x < grid.rows; x++) {
+    for (let y = 0; y < grid.cols; y++) {
+      const distance = distanceToLane(x, y, lane);
 
-        if (distance >= reach || this.isBlocked(x, y)) {
-          continue;
-        }
-
-        const cell = grid.get(x, y)!;
-        const value = this.settings.trailStrength * (1 - distance / reach);
-
-        cell.pheromone = Math.max(cell.pheromone, value);
+      if (distance >= reach || isBlocked(x, y)) {
+        continue;
       }
+
+      const cell = grid.get(x, y)!;
+      const value = settings.trailStrength * (1 - distance / reach);
+
+      cell.pheromone = Math.max(cell.pheromone, value);
+    }
+  }
+}
+
+function placeOnLane(
+  grid: Grid,
+  ant: Ant,
+  lane: Lane,
+  settings: LaneSettings,
+  random: () => number,
+  isBlocked: BlockedTest,
+) {
+  const dx = lane.toX - lane.fromX;
+  const dy = lane.toY - lane.fromY;
+  const length = Math.hypot(dx, dy);
+
+  const perpX = -dy / length;
+  const perpY = dx / length;
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const along = random();
+    const across = (random() * 2 - 1) * settings.trailWidth;
+
+    // eixo da pista passa pelo centro das células (x + 0.5, y + 0.5)
+    const x = lane.fromX + dx * along + perpX * across + 0.5;
+    const y = lane.fromY + dy * along + perpY * across + 0.5;
+
+    if (isFree(grid, isBlocked, x, y)) {
+      ant.x = x;
+      ant.y = y;
+      break;
     }
   }
 
-  private placeOnLane(grid: Grid, ant: Ant, lane: Lane, random: () => number) {
-    const dx = lane.toX - lane.fromX;
-    const dy = lane.toY - lane.fromY;
-    const length = Math.hypot(dx, dy);
-
-    const perpX = -dy / length;
-    const perpY = dx / length;
-
-    for (let attempt = 0; attempt < 100; attempt++) {
-      const along = random();
-      const across = Math.round((random() * 2 - 1) * this.settings.trailWidth);
-
-      const x = Math.round(lane.fromX + dx * along + perpX * across);
-      const y = Math.round(lane.fromY + dy * along + perpY * across);
-
-      if (grid.get(x, y) && !this.isBlocked(x, y)) {
-        ant.x = x;
-        ant.y = y;
-        break;
-      }
-    }
-
-    const jitter = (random() * 2 - 1) * this.settings.headingJitter;
-    setHeading(ant, Math.atan2(dy, dx) + jitter);
-  }
+  const jitter = (random() * 2 - 1) * settings.headingJitter;
+  ant.heading = Math.atan2(dy, dx) + jitter;
 }
 
 function distanceToLane(x: number, y: number, lane: Lane): number {

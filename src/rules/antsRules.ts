@@ -1,46 +1,88 @@
 import type { Grid } from "../models/grid.js";
 import type { Ant } from "../models/ant.js";
-import type { PointOfInterest } from "../models/pointOfInterest.js";
 import type { Obstacle } from "../models/obstacle.js";
 import type { Wind } from "../models/wind.js";
 
-import { RandomWalk } from "../movement/randomWalk.js";
-import { LevyFlight } from "../movement/levyFlight.js";
+export interface AntRulesSettings {
+  // --- campo de feromônio: ∂g/∂t = D∇²g − v·∇g − evaporation·g + deposit·ρ
 
+  diffusion: number;
+  evaporation: number;
+
+  // feromônio depositado por formiga por tick, na célula onde ela está
+  deposit: number;
+
+  // --- movimento
+
+  // velocidade constante, em células por tick: formigas nunca param
+  speed: number;
+
+  // as duas antenas ficam a essa distância à frente (células)...
+  sensorDistance: number;
+
+  // ...e a ± esse ângulo (rad) da direção atual. Nada atrás é percebido.
+  sensorAngle: number;
+
+  // b: ganho da virada em direção à antena com mais feromônio
+  turnGain: number;
+
+  // α: concentração abaixo da qual a diferença entre as antenas pesa pouco
+  turnSaturation: number;
+
+  // maior virada determinística possível num tick (rad)
+  maxTurn: number;
+
+  // desvio padrão do ruído angular por tick (rad)
+  turnNoise: number;
+}
+
+export const DEFAULT_ANT_RULES: AntRulesSettings = {
+  diffusion: 0.005,
+  evaporation: 0.05,
+  deposit: 0.2,
+
+  speed: 1,
+  sensorDistance: 3,
+  sensorAngle: Math.PI / 4,
+  turnGain: 1,
+  turnSaturation: 0.05,
+  maxTurn: 0.5,
+  turnNoise: 0.1,
+};
+
+function wrapAngle(angle: number): number {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
+
+// normal padrão (Box–Muller)
+function gaussian(): number {
+  const u = 1 - Math.random();
+  const v = Math.random();
+
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+/*
+ * Formiga de correição cega seguindo trilha (Li & Chen, arXiv:1703.06859).
+ *
+ * O artigo usa ∂v/∂t + v·∇v = b∇g. Com velocidade constante s, a única
+ * parte do gradiente que muda o movimento é a perpendicular à direção, e a
+ * lei vira dθ/dt = (b/s)·(∇g·n̂), com n̂ a normal à esquerda. Uma formiga
+ * mede ∇g·n̂ comparando as duas antenas — é exatamente o que moveAnts faz:
+ * vira para o lado com mais feromônio, proporcionalmente à diferença, com a
+ * saturação β/(α + βg) do artigo aparecendo como (gL − gR)/(α + gL + gR).
+ *
+ * Não há alvo, voo de Lévy nem passo aleatório: toda formiga anda o tempo
+ * todo, deposita feromônio onde passa e segue o que as da frente deixaram.
+ * A regra é simétrica entre esquerda e direita, então nada favorece girar
+ * num sentido — um mill só pode aparecer se a trilha se fechar sozinha.
+ */
 export class AntRules {
-  private randomWalk = new RandomWalk();
-
-  private levyFlight = new LevyFlight();
-
-  // parâmetros do modelo
-  private D = 0.005;
-  private evaporation = 0.05;
-  private lambda = 0.2;
-
-  // influência do POI
-  private poiWeight = 2.0;
-
-  // força do gradiente de feromônio (b, na equação dv/dt = b∇g)
-  private gradientGain = 3.0;
-
-  // concentração de feromônio na qual a influência do gradiente satura
-  private gradientSaturation = 0.1;
-
-  // ruído aleatório aplicado à direção a cada passo
-  private directionNoise = 0.15;
-
-  // quanto a direção memorizada pesa frente ao estímulo do tick atual
-  private memoryWeight = 0.5;
-
-  // fração dos ticks (fora de um voo de Lévy) em que a formiga segue a trilha
-  private trailFollowChance = 0.8;
-
   constructor(
     private ants: Ant[],
-    private pointsOfInterest: PointOfInterest[],
     private obstacles: Obstacle[],
     private wind: Wind,
-    private followTrailsWithoutPOI = false,
+    private settings: AntRulesSettings = DEFAULT_ANT_RULES,
   ) {}
 
   /*
@@ -53,7 +95,7 @@ export class AntRules {
    */
   advectionVelocity(): [number, number] {
     const [vx, vy] = this.wind.velocity();
-    const limit = 1 - 4 * this.D - this.evaporation;
+    const limit = 1 - 4 * this.settings.diffusion - this.settings.evaporation;
     const speed = Math.abs(vx) + Math.abs(vy);
 
     if (speed <= limit) {
@@ -71,71 +113,30 @@ export class AntRules {
   }
 
   private clearAntDensity(grid: Grid) {
-    for (let x = 0; x < grid.rows; x++) {
-      for (let y = 0; y < grid.cols; y++) {
-        const cell = grid.get(x, y);
-
-        if (cell) {
-          cell.ants = 0;
-        }
+    for (const row of grid.cells) {
+      for (const cell of row) {
+        cell.ants = 0;
       }
     }
   }
 
   private moveAnts(grid: Grid) {
+    const { turnGain, turnSaturation, maxTurn, turnNoise, sensorAngle } =
+      this.settings;
+
     for (const ant of this.ants) {
-      let nx = ant.x;
-      let ny = ant.y;
+      const left = this.sense(grid, ant, sensorAngle);
+      const right = this.sense(grid, ant, -sensorAngle);
 
-      if (this.levyFlight.isFlying(ant)) {
-        [nx, ny] = this.levyFlight.move(ant);
-      } else {
-        /*
-         * Sem um POI, não há nenhum objetivo competindo com o
-         * feromônio — formigas recém-nascidas já começam agrupadas,
-         * então seguir a trilha nesse momento faz o próprio
-         * agrupamento inicial colapsar num mill antes mesmo de a
-         * simulação começar de verdade. Enquanto não existir POI, as
-         * formigas apenas exploram (Lévy/Random Walk); o
-         * comportamento de seguir trilha + memória só entra quando
-         * há um objetivo real a perseguir.
-         *
-         * `followTrailsWithoutPOI` desliga essa trava para condições
-         * iniciais que já trazem uma estrutura química semeada (as
-         * trilhas A↔B do experimento de vento), onde as formigas não
-         * nascem aglomeradas e a trilha é justamente o que se quer que
-         * elas sigam.
-         */
-        const followChance =
-          this.followTrailsWithoutPOI || this.pointsOfInterest.length > 0
-            ? this.trailFollowChance
-            : 0;
+      const pull =
+        (turnGain * (left - right)) / (turnSaturation + left + right);
+      const turn = Math.max(-maxTurn, Math.min(maxTurn, pull));
 
-        if (Math.random() < followChance) {
-          [nx, ny] = this.steerTowardTrail(grid, ant);
-        } else {
-          if (Math.random() < 0.01) {
-            [nx, ny] = this.levyFlight.move(ant);
-          } else {
-            [nx, ny] = this.randomWalk.move(ant.x, ant.y);
-          }
-        }
-      }
+      ant.heading = wrapAngle(ant.heading + turn + turnNoise * gaussian());
 
-      /*
-       * Verifica se a nova posição está dentro do grid
-       * e se não está dentro de um obstáculo.
-       */
-      const insideGrid = nx >= 0 && nx < grid.rows && ny >= 0 && ny < grid.cols;
+      this.step(grid, ant);
 
-      const blocked = this.isBlocked(nx, ny);
-
-      if (insideGrid && !blocked) {
-        ant.x = nx;
-        ant.y = ny;
-      }
-
-      const cell = grid.get(ant.x, ant.y);
+      const cell = grid.get(ant.cellX, ant.cellY);
 
       if (cell) {
         cell.ants++;
@@ -144,223 +145,92 @@ export class AntRules {
   }
 
   /*
-   * Implementa dv/dt = b∇g (Li & Chen, arXiv:1703.06859): a direção
-   * memorizada da formiga (ant.dirX/dirY) é somada — não substituída —
-   * ao gradiente local de feromônio e à atração pelo POI, o que
-   * combina memória (persistência de direção) com reforço (trilha de
-   * feromônio). A direção resultante só serve para escolher, entre os
-   * vizinhos válidos, qual célula do grid ocupar a seguir — a posição
-   * da formiga continua inteira, célula a célula.
+   * Feromônio sob uma antena, interpolado bilinearmente entre os centros das
+   * células — sem isso a diferença entre as antenas pula em degraus toda vez
+   * que uma delas cruza a fronteira de uma célula. Fora do grid conta como 0.
    */
-  private steerTowardTrail(grid: Grid, ant: Ant): [number, number] {
-    const directions: [number, number][] = [
-      [-1, -1],
-      [-1, 0],
-      [-1, 1],
-      [0, -1],
-      [0, 1],
-      [1, -1],
-      [1, 0],
-      [1, 1],
-    ];
+  private sense(grid: Grid, ant: Ant, offset: number): number {
+    const angle = ant.heading + offset;
+    const px = ant.x + this.settings.sensorDistance * Math.cos(angle) - 0.5;
+    const py = ant.y + this.settings.sensorDistance * Math.sin(angle) - 0.5;
 
-    const poi = this.getClosestPOI(ant);
+    const x0 = Math.floor(px);
+    const y0 = Math.floor(py);
+    const fx = px - x0;
+    const fy = py - y0;
 
-    let poiDirX = 0;
-    let poiDirY = 0;
+    const g = (x: number, y: number) => grid.get(x, y)?.pheromone ?? 0;
 
-    if (poi) {
-      const dx = poi.x - ant.x;
-      const dy = poi.y - ant.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance > 0) {
-        poiDirX = dx / distance;
-        poiDirY = dy / distance;
-      }
-    }
-
-    const candidates: {
-      x: number;
-      y: number;
-      unitX: number;
-      unitY: number;
-    }[] = [];
-
-    let gradientX = 0;
-    let gradientY = 0;
-
-    for (const [dx, dy] of directions) {
-      const nx = ant.x + dx;
-      const ny = ant.y + dy;
-
-      const cell = grid.get(nx, ny);
-
-      /*
-       * Impede a formiga de entrar em um obstáculo.
-       */
-      if (!cell || this.isBlocked(nx, ny)) {
-        continue;
-      }
-
-      const length = Math.sqrt(dx * dx + dy * dy);
-      const unitX = dx / length;
-      const unitY = dy / length;
-
-      candidates.push({
-        x: nx,
-        y: ny,
-        unitX,
-        unitY,
-      });
-
-      gradientX += unitX * cell.pheromone;
-      gradientY += unitY * cell.pheromone;
-    }
-
-    /*
-     * Se nenhuma posição válida foi encontrada,
-     * utiliza Random Walk.
-     */
-    if (candidates.length === 0) {
-      return this.randomWalk.move(ant.x, ant.y);
-    }
-
-    /*
-     * A influência do gradiente de feromônio satura com a
-     * concentração em vez de ser proporcional a ela (gradientLength
-     * cru) ou totalmente normalizada para módulo 1: cru, a
-     * concentração cresce sem limite onde as formigas se aglomeram e
-     * sobrepuja o peso fixo do POI; normalizada, até um resquício
-     * fraquíssimo de feromônio (ruído) puxa com força máxima, o que
-     * gruda todas as formigas num único bloco rígido que só desliza
-     * junto e nunca se diferencia o bastante para circular. A curva
-     * `length / (gradientSaturation + length)` fica perto de 0 para
-     * feromônio fraco (ignorado como ruído) e se aproxima de 1 só onde
-     * a trilha é de fato forte — refletindo o termo de quimiotaxia
-     * saturante do artigo (β/(α+βg)).
-     */
-    const gradientLength = Math.sqrt(
-      gradientX * gradientX + gradientY * gradientY,
+    return (
+      (1 - fx) * (1 - fy) * g(x0, y0) +
+      fx * (1 - fy) * g(x0 + 1, y0) +
+      (1 - fx) * fy * g(x0, y0 + 1) +
+      fx * fy * g(x0 + 1, y0 + 1)
     );
-
-    let gradientDirX = 0;
-    let gradientDirY = 0;
-
-    if (gradientLength > 0) {
-      const scale = gradientLength / (this.gradientSaturation + gradientLength);
-
-      gradientDirX = (gradientX / gradientLength) * scale;
-      gradientDirY = (gradientY / gradientLength) * scale;
-    }
-
-    let signalX = this.gradientGain * gradientDirX + this.poiWeight * poiDirX;
-    let signalY = this.gradientGain * gradientDirY + this.poiWeight * poiDirY;
-
-    /*
-     * O estímulo do tick atual (gradiente + POI) é normalizado antes de
-     * ser combinado com a direção memorizada. Sem isso, a magnitude do
-     * feromônio acumulado (que cresce/varia sem limite) determinaria
-     * sozinha o quanto a memória pesa, tornando `memoryWeight` sem
-     * efeito e fazendo a formiga oscilar contra obstáculos em vez de
-     * deslizar suavemente ao redor deles.
-     */
-    const signalLength = Math.sqrt(signalX * signalX + signalY * signalY);
-
-    if (signalLength > 0) {
-      signalX /= signalLength;
-      signalY /= signalLength;
-    }
-
-    const noiseX = (Math.random() * 2 - 1) * this.directionNoise;
-    const noiseY = (Math.random() * 2 - 1) * this.directionNoise;
-
-    let dirX =
-      this.memoryWeight * ant.dirX + (1 - this.memoryWeight) * signalX + noiseX;
-
-    let dirY =
-      this.memoryWeight * ant.dirY + (1 - this.memoryWeight) * signalY + noiseY;
-
-    const dirLength = Math.sqrt(dirX * dirX + dirY * dirY);
-
-    if (dirLength > 0) {
-      dirX /= dirLength;
-      dirY /= dirLength;
-    }
-
-    ant.dirX = dirX;
-    ant.dirY = dirY;
-
-    /*
-     * Escolhe, entre os vizinhos válidos, aquele cujo deslocamento
-     * mais se alinha com a direção memorizada — se o melhor vizinho
-     * estiver bloqueado ele nem entra em `candidates`, então a
-     * formiga automaticamente desliza para o próximo mais alinhado
-     * em vez de perder o rumo ao tocar um obstáculo.
-     */
-    let best = candidates[0];
-    let bestScore = -Infinity;
-
-    for (const candidate of candidates) {
-      const score = candidate.unitX * dirX + candidate.unitY * dirY;
-
-      if (score > bestScore) {
-        bestScore = score;
-        best = candidate;
-      }
-    }
-
-    return [best.x, best.y];
   }
 
   /*
-   * Verifica se uma posição está dentro de
-   * qualquer obstáculo existente.
+   * Anda `speed` células na direção atual. Paredes do grid e obstáculos são
+   * retângulos alinhados aos eixos, então o choque é uma reflexão especular:
+   * inverte a componente da direção que atravessaria a parede e mantém a
+   * outra. A formiga se afasta da parede em vez de grudar nela — deslizar
+   * rente às bordas produziria voltas em torno do obstáculo ou da arena que
+   * não têm nada a ver com seguir trilha.
    */
-  private isBlocked(x: number, y: number): boolean {
-    return this.obstacles.some((obstacle) => obstacle.contains(x, y));
+  private step(grid: Grid, ant: Ant) {
+    const { speed } = this.settings;
+
+    let dx = Math.cos(ant.heading);
+    let dy = Math.sin(ant.heading);
+
+    if (!this.isBlocked(grid, ant.x + dx * speed, ant.y + dy * speed)) {
+      ant.x += dx * speed;
+      ant.y += dy * speed;
+      return;
+    }
+
+    const blockedX = this.isBlocked(grid, ant.x + dx * speed, ant.y);
+    const blockedY = this.isBlocked(grid, ant.x, ant.y + dy * speed);
+
+    if (blockedX) dx = -dx;
+    if (blockedY) dy = -dy;
+
+    // bateu de quina: nenhum eixo sozinho está bloqueado, só a diagonal
+    if (!blockedX && !blockedY) {
+      dx = -dx;
+      dy = -dy;
+    }
+
+    ant.heading = Math.atan2(dy, dx);
+
+    if (!this.isBlocked(grid, ant.x + dx * speed, ant.y + dy * speed)) {
+      ant.x += dx * speed;
+      ant.y += dy * speed;
+    }
   }
 
-  private getClosestPOI(ant: Ant): PointOfInterest | null {
-    if (this.pointsOfInterest.length === 0) {
-      return null;
-    }
-
-    let closest = this.pointsOfInterest[0];
-
-    let minDistance = Infinity;
-
-    for (const poi of this.pointsOfInterest) {
-      const dx = poi.x - ant.x;
-
-      const dy = poi.y - ant.y;
-
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance < minDistance) {
-        minDistance = distance;
-        closest = poi;
-      }
-    }
-
-    return closest;
+  private isBlocked(grid: Grid, x: number, y: number): boolean {
+    return (
+      x < 0 ||
+      y < 0 ||
+      x >= grid.rows ||
+      y >= grid.cols ||
+      this.obstacles.some((obstacle) => obstacle.contains(x, y))
+    );
   }
 
   private depositPheromone(grid: Grid) {
-    for (let x = 0; x < grid.rows; x++) {
-      for (let y = 0; y < grid.cols; y++) {
-        const cell = grid.get(x, y);
-
-        if (cell) {
-          cell.pheromone += this.lambda * cell.ants;
-        }
+    for (const row of grid.cells) {
+      for (const cell of row) {
+        cell.pheromone += this.settings.deposit * cell.ants;
       }
     }
   }
 
   /*
-   * Integra ∂g/∂t = D∇²g − v·∇g − evaporation·g (o termo λρ já entrou em
-   * depositPheromone) com Euler explícito, dt = 1 tick e dx = 1 célula.
+   * Integra ∂g/∂t = D∇²g − v·∇g − evaporation·g (o termo de depósito já
+   * entrou em depositPheromone) com Euler explícito, dt = 1 tick e dx = 1
+   * célula.
    *
    * O termo de advecção usa upwind de primeira ordem: a derivada em cada
    * eixo é tomada do lado de onde o vento vem, o que dá
@@ -372,6 +242,7 @@ export class AntRules {
    * a difusão.
    */
   private diffusePheromone(grid: Grid) {
+    const { diffusion, evaporation } = this.settings;
     const [vx, vy] = this.advectionVelocity();
 
     const next = Array.from(
@@ -405,7 +276,7 @@ export class AntRules {
           Math.abs(vx) * (g - (upwindX?.pheromone ?? 0)) +
           Math.abs(vy) * (g - (upwindY?.pheromone ?? 0));
 
-        let value = g + this.D * laplacian - this.evaporation * g - advection;
+        let value = g + diffusion * laplacian - evaporation * g - advection;
 
         if (value < 0) {
           value = 0;

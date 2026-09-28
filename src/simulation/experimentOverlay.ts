@@ -1,4 +1,4 @@
-import type { TrailSettings } from "./initialConditions.js";
+import type { ColumnSettings } from "./initialConditions.js";
 import type { MillSnapshot } from "./millMetrics.js";
 
 // mesma inversão do Grid.draw(): x = linha → eixo vertical, y = coluna → horizontal
@@ -9,7 +9,7 @@ function toPixel(x: number, y: number, cellSize: number): [number, number] {
 export function drawTrailEndpoints(
   ctx: CanvasRenderingContext2D,
   cellSize: number,
-  trails: TrailSettings,
+  trails: ColumnSettings,
 ) {
   ctx.save();
   ctx.font = "bold 12px sans-serif";
@@ -113,7 +113,9 @@ export function drawMillMarker(
     return;
   }
 
-  const [px, py] = toPixel(snapshot.centerX, snapshot.centerY, cellSize);
+  // o centroide está em coordenadas contínuas, não em índice de célula
+  const px = snapshot.centerY * cellSize;
+  const py = snapshot.centerX * cellSize;
 
   ctx.save();
   ctx.strokeStyle = "magenta";

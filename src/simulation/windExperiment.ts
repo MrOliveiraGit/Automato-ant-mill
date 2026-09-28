@@ -2,11 +2,20 @@ import { Grid } from "../models/grid.js";
 import { Ant } from "../models/ant.js";
 import { Obstacle } from "../models/obstacle.js";
 import { Wind } from "../models/wind.js";
-import type { PointOfInterest } from "../models/pointOfInterest.js";
-import { AntRules } from "../rules/antsRules.js";
 import {
+  AntRules,
+  DEFAULT_ANT_RULES,
+  type AntRulesSettings,
+} from "../rules/antsRules.js";
+import {
+  Column,
   CornerCluster,
+  RandomScatter,
+  Ring,
   TwoWayTrails,
+  type ColumnSettings,
+  type InitialCondition,
+  type RingSettings,
   type TrailSettings,
 } from "./initialConditions.js";
 import {
@@ -62,6 +71,24 @@ export const WIND_EXPERIMENT = {
     headingJitter: 0.3,
   } satisfies TrailSettings,
 
+  // teste A (sustentar um mill pronto)
+  ring: {
+    center: [50, 50],
+    radius: 15,
+    strength: 5,
+    width: 1,
+    headingJitter: 0.2,
+  } satisfies RingSettings,
+
+  // teste B (uma coluna que perdeu a trilha)
+  column: {
+    pointA: [50, 15],
+    pointB: [50, 60],
+    trailStrength: 5,
+    trailWidth: 1,
+    headingJitter: 0.2,
+  } satisfies ColumnSettings,
+
   metrics: {
     displacementWindow: 5,
     minSpeed: 0.2,
@@ -80,27 +107,61 @@ export const WIND_EXPERIMENT = {
   ticksPerRun: 2000,
 };
 
-export type Scenario = "trails" | "classic";
+/*
+ * random: formigas espalhadas, sem feromônio (ambiente neutro);
+ * column: uma coluna de correição sobre uma trilha que termina (teste B);
+ * ring: um mill pronto (teste A); trails: as duas pistas A↔B do experimento
+ * de vento; classic: o aglomerado no canto do cenário original.
+ */
+export const SCENARIOS = [
+  "random",
+  "column",
+  "ring",
+  "trails",
+  "classic",
+] as const;
+
+export type Scenario = (typeof SCENARIOS)[number];
 
 export interface SimulationOptions {
   scenario: Scenario;
   windStrength: number;
   seed: number;
   layout?: ObstacleLayout | undefined;
+  rules?: Partial<AntRulesSettings> | undefined;
   ctx?: CanvasRenderingContext2D | undefined;
   cellSize?: number | undefined;
   obstacles?: Obstacle[] | undefined;
-  pointsOfInterest?: PointOfInterest[] | undefined;
 }
 
 export interface Simulation {
   grid: Grid;
   ants: Ant[];
-  pointsOfInterest: PointOfInterest[];
   obstacles: Obstacle[];
   wind: Wind;
   rules: AntRules;
   metrics: MillMetrics;
+}
+
+function initialCondition(
+  scenario: Scenario,
+  seed: number,
+  isBlocked: (x: number, y: number) => boolean,
+): InitialCondition {
+  const config = WIND_EXPERIMENT;
+
+  switch (scenario) {
+    case "random":
+      return new RandomScatter(seed, isBlocked);
+    case "column":
+      return new Column(config.column, seed, isBlocked);
+    case "ring":
+      return new Ring(config.ring, seed, isBlocked);
+    case "trails":
+      return new TwoWayTrails(config.trails, seed, isBlocked);
+    case "classic":
+      return new CornerCluster(seed);
+  }
 }
 
 export function createSimulation(options: SimulationOptions): Simulation {
@@ -113,28 +174,18 @@ export function createSimulation(options: SimulationOptions): Simulation {
     options.ctx ?? null,
   );
 
-  const layout =
-    options.scenario === "trails" ? (options.layout ?? config.layout) : "none";
-
   const obstacles = [
-    ...OBSTACLE_LAYOUTS[layout].map(
+    ...OBSTACLE_LAYOUTS[options.layout ?? config.layout].map(
       (o) => new Obstacle(o.x, o.y, o.width, o.height),
     ),
     ...(options.obstacles ?? []),
   ];
 
-  const pointsOfInterest = [...(options.pointsOfInterest ?? [])];
-
   const ants = Array.from({ length: config.numberOfAnts }, () => new Ant(0, 0));
 
-  const initialCondition =
-    options.scenario === "trails"
-      ? new TwoWayTrails(config.trails, options.seed, (x, y) =>
-          obstacles.some((obstacle) => obstacle.contains(x, y)),
-        )
-      : new CornerCluster(options.seed);
-
-  initialCondition.initialize(grid, ants);
+  initialCondition(options.scenario, options.seed, (x, y) =>
+    obstacles.some((obstacle) => obstacle.contains(x, y)),
+  ).initialize(grid, ants);
 
   const wind = new Wind(
     config.windDirection[0],
@@ -142,18 +193,14 @@ export function createSimulation(options: SimulationOptions): Simulation {
     options.windStrength,
   );
 
-  const rules = new AntRules(
-    ants,
-    pointsOfInterest,
-    obstacles,
-    wind,
-    options.scenario === "trails",
-  );
+  const rules = new AntRules(ants, obstacles, wind, {
+    ...DEFAULT_ANT_RULES,
+    ...options.rules,
+  });
 
   return {
     grid,
     ants,
-    pointsOfInterest,
     obstacles,
     wind,
     rules,
@@ -179,28 +226,91 @@ export function nearWallFraction(ants: Ant[], grid: Grid, band = 2): number {
   return ants.length > 0 ? near.length / ants.length : 0;
 }
 
+/*
+ * Fração das formigas "em coluna": com outra formiga logo à frente (até
+ * `distance` células, dentro de ±30° da própria direção) andando no mesmo
+ * sentido (direções a menos de 45°). É o que se espera de formigas de
+ * correição seguindo trilha, e o que falta tanto num passeio aleatório
+ * quanto num aglomerado parado.
+ */
+export function followingFraction(ants: Ant[], distance = 3): number {
+  let following = 0;
+
+  for (const ant of ants) {
+    const hx = Math.cos(ant.heading);
+    const hy = Math.sin(ant.heading);
+
+    const hasLeader = ants.some((other) => {
+      if (other === ant) {
+        return false;
+      }
+
+      const dx = other.x - ant.x;
+      const dy = other.y - ant.y;
+      const d = Math.hypot(dx, dy);
+
+      return (
+        d > 0 &&
+        d <= distance &&
+        (dx * hx + dy * hy) / d >= Math.cos(Math.PI / 6) &&
+        Math.cos(other.heading - ant.heading) >= Math.cos(Math.PI / 4)
+      );
+    });
+
+    following += hasLeader ? 1 : 0;
+  }
+
+  return ants.length > 0 ? following / ants.length : 0;
+}
+
+// fração das formigas em células com ≥ `minAnts` formigas (aglomerados)
+export function crowdedFraction(grid: Grid, ants: Ant[], minAnts = 4): number {
+  const crowded = ants.filter(
+    (ant) => (grid.get(ant.cellX, ant.cellY)?.ants ?? 0) >= minAnts,
+  );
+
+  return ants.length > 0 ? crowded.length / ants.length : 0;
+}
+
+export interface TrialOptions {
+  scenario: Scenario;
+  windStrength: number;
+  seed: number;
+  ticks: number;
+  layout?: ObstacleLayout | undefined;
+  rules?: Partial<AntRulesSettings> | undefined;
+}
+
 export interface TrialResult extends MillRunSummary {
+  scenario: Scenario;
   windStrength: number;
   seed: number;
   millFormed: boolean;
+
+  // fração dos ticks do último quarto da corrida em estado rotacional —
+  // no teste A, se o mill semeado ainda existe no fim
+  lateRotating: number;
+
+  // médias ao longo do último quarto da corrida
+  following: number;
+  crowded: number;
+
   meanNearWall: number;
   finalNearWall: number;
   minPheromone: number;
   maxPheromone: number;
 }
 
-export function runTrial(
-  windStrength: number,
-  seed: number,
-  ticks: number,
-  layout: ObstacleLayout = WIND_EXPERIMENT.layout,
-): TrialResult {
-  const simulation = createSimulation({
-    scenario: "trails",
-    windStrength,
-    seed,
-    layout,
-  });
+export function runTrial(options: TrialOptions): TrialResult {
+  const { ticks } = options;
+
+  const simulation = createSimulation(options);
+
+  const lateStart = Math.floor((3 * ticks) / 4);
+  let lateRotatingTicks = 0;
+  let followingSum = 0;
+  let crowdedSum = 0;
+  let lateSamples = 0;
 
   let nearWallSum = 0;
   let minPheromone = Infinity;
@@ -208,9 +318,20 @@ export function runTrial(
 
   for (let tick = 0; tick < ticks; tick++) {
     simulation.rules.update(simulation.grid);
-    simulation.metrics.measure(simulation.ants);
+    const snapshot = simulation.metrics.measure(simulation.ants);
 
     nearWallSum += nearWallFraction(simulation.ants, simulation.grid);
+
+    if (tick >= lateStart) {
+      lateRotatingTicks += snapshot.rotating ? 1 : 0;
+
+      // O(n²): amostrado a cada 10 ticks
+      if ((tick - lateStart) % 10 === 0) {
+        followingSum += followingFraction(simulation.ants);
+        crowdedSum += crowdedFraction(simulation.grid, simulation.ants);
+        lateSamples++;
+      }
+    }
 
     for (const row of simulation.grid.cells) {
       for (const cell of row) {
@@ -224,9 +345,14 @@ export function runTrial(
 
   return {
     ...summary,
-    windStrength,
-    seed,
+    scenario: options.scenario,
+    windStrength: options.windStrength,
+    seed: options.seed,
     millFormed: summary.maxEpisodeRotations >= WIND_EXPERIMENT.minRotations,
+    lateRotating:
+      ticks > lateStart ? lateRotatingTicks / (ticks - lateStart) : 0,
+    following: lateSamples > 0 ? followingSum / lateSamples : 0,
+    crowded: lateSamples > 0 ? crowdedSum / lateSamples : 0,
     meanNearWall: ticks > 0 ? nearWallSum / ticks : 0,
     finalNearWall: nearWallFraction(simulation.ants, simulation.grid),
     minPheromone,
@@ -235,10 +361,12 @@ export function runTrial(
 }
 
 export interface ExperimentOptions {
+  scenario: Scenario;
   runs: number;
   ticks: number;
   seed: number;
   layout: ObstacleLayout;
+  rules?: Partial<AntRulesSettings> | undefined;
   onTrial?: ((result: TrialResult, preset: string) => void) | undefined;
 }
 
@@ -252,12 +380,14 @@ export function runWindExperiment(options: ExperimentOptions) {
     const trials: TrialResult[] = [];
 
     for (let run = 0; run < options.runs; run++) {
-      const result = runTrial(
-        preset.strength,
-        options.seed + run,
-        options.ticks,
-        options.layout,
-      );
+      const result = runTrial({
+        scenario: options.scenario,
+        windStrength: preset.strength,
+        seed: options.seed + run,
+        ticks: options.ticks,
+        layout: options.layout,
+        rules: options.rules,
+      });
 
       trials.push(result);
       options.onTrial?.(result, preset.name);

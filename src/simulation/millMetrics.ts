@@ -65,6 +65,9 @@ export interface MillRunSummary {
   maxEpisodeRotations: number;
   maxParticipants: number;
   meanOrder: number;
+
+  // primeiro tick em estado rotacional (null se nunca entrou)
+  firstRotatingTick: number | null;
 }
 
 function wrapAngle(angle: number): number {
@@ -106,6 +109,7 @@ export class MillMetrics {
   private maxEpisodeAngle = 0;
   private maxParticipants = 0;
   private orderSum = 0;
+  private firstRotatingTick: number | null = null;
 
   constructor(private settings: MillMetricsSettings) {}
 
@@ -150,6 +154,7 @@ export class MillMetrics {
       maxEpisodeRotations: this.maxEpisodeAngle / (2 * Math.PI),
       maxParticipants: this.maxParticipants,
       meanOrder: this.tick > 0 ? this.orderSum / this.tick : 0,
+      firstRotatingTick: this.firstRotatingTick,
     };
   }
 
@@ -309,6 +314,7 @@ export class MillMetrics {
     this.episodeCenter = [snapshot.centerX, snapshot.centerY];
 
     this.rotatingTicks++;
+    this.firstRotatingTick ??= this.tick - 1;
     this.longestEpisodeTicks = Math.max(
       this.longestEpisodeTicks,
       this.episodeTicks,
