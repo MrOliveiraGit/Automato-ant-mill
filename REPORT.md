@@ -1,30 +1,30 @@
-# Automato — project report
+# Automato — relatório do projeto
 
-**Ant mills in an agent-based pheromone simulation, and what wind does to them**
+**Moinhos de formigas numa simulação de agentes com feromônio, e o que o vento faz com eles**
 
-Repository: `MrOliveiraGit/Automato-ant-mill` · period covered: 2026-09-11 → 2026-09-28 · 10 commits on 4 branches
+Repositório: `MrOliveiraGit/Automato-ant-mill` · período: 2026-09-11 → 2026-09-28 · 10 commits em 4 branches
 
 ---
 
-## 1. Summary
+## 1. Resumo
 
-The project simulates ants on a 100 × 100 grid. Each ant is an individual agent, and all ants share one pheromone field. The goal is to reproduce the **ant mill**, the "death spiral" in which army ants circle endlessly following each other's trail. It then asks one scientific question:
+O projeto simula formigas numa grade de 100 × 100. Cada formiga é um agente individual, e todas compartilham um único campo de feromônio. O objetivo é reproduzir o **moinho de formigas** (*ant mill*), a "espiral da morte" em que formigas de correição andam em círculo sem parar, seguindo a trilha umas das outras. A partir disso, o projeto faz uma pergunta científica:
 
-> **Can wind that moves the pheromone trails change whether a mill emerges?**
+> **O vento, ao deslocar as trilhas de feromônio, muda a chance de um moinho surgir?**
 
-The work went through two movement models:
+O trabalho passou por dois modelos de movimento:
 
-| | Movement v1 (commits `54fd7bd` → `4085dfc`) | Movement v2, "army ant" (`7c124f7` → `6082cec`) |
+| | Movimento v1 (commits `54fd7bd` → `4085dfc`) | Movimento v2, "formiga de correição" (`7c124f7` → `6082cec`) |
 |---|---|---|
-| How an ant moves | Lattice steps; random walk + Lévy flights; follows the trail **only if a food target (POI) exists**, and is pulled toward it | Continuous position, constant speed; two antennae; turns toward the side with more pheromone; nothing else |
-| Mills from scratch | **0 mills in 120 runs** (every wind level and obstacle layout) | **Mills in ~80–90% of runs**, with no rule mentioning rotation |
-| Effect of wind | Colony blown into the downwind wall; still no mills | Strong wind **destroys** mills; weak wind gives **more, smaller, briefer** mills; walls are a confound |
+| Como a formiga se move | Passos na grade; passeio aleatório + voos de Lévy; segue a trilha **só se existir um alvo de comida (POI)**, e é puxada para ele | Posição contínua, velocidade constante; duas antenas; vira para o lado com mais feromônio; nada além disso |
+| Moinhos surgindo do zero | **0 moinhos em 120 execuções** (em todas as intensidades de vento e layouts de obstáculo) | **Moinhos em ~80–90% das execuções**, sem nenhuma regra que fale em rotação |
+| Efeito do vento | A colônia é empurrada contra a parede a favor do vento; continua sem moinhos | Vento forte **destrói** moinhos; vento fraco gera moinhos **mais frequentes, menores e mais curtos**; as paredes são um fator de confusão |
 
-Nowhere in the code is a mill imposed. The turning rule is symmetric between left and right, and nothing refers to a centre, a circle or a direction of rotation. The one exception is **Test A (`ring`)**, which *starts* from a mill on purpose. It checks whether a mill keeps itself going; it says nothing about how one forms.
+Em nenhum lugar do código o moinho é imposto. A regra de virada é simétrica entre esquerda e direita, e nada se refere a um centro, a um círculo ou a um sentido de rotação. A única exceção é o **Teste A (`ring`)**, que *começa* de propósito com um moinho pronto. Ele verifica se um moinho se mantém sozinho; não diz nada sobre como um moinho se forma.
 
 ---
 
-## 2. Timeline
+## 2. Linha do tempo
 
 ```
 master             54fd7bd ── 0f61a19
@@ -35,34 +35,32 @@ wind-on-pheromone                └── 1016866 ── b2d048a ── fe297df
                                                                          │
 army-ant-movement                                                        └── 7c124f7 ── 6082cec
                                                                                            │
-project-report                                                                             └── (this report)
+project-report                                                                             └── (este relatório)
 ```
 
-| # | Date | Commit | Branch | Concept | Why | Result |
+| # | Data | Commit | Branch | Conceito | Por quê | Resultado |
 |---|---|---|---|---|---|---|
-| 1 | 09-11 | `54fd7bd` | master | First simulation: pheromone field + memory/reinforcement steering (v1) | Starting point, based on Li & Chen | Ants forage to a POI; mills claimed only "occasionally" |
-| 2 | 09-11 | `0f61a19` | master | Remove the Conway (Game of Life) scaffolding | Dead code from the project's origin | Codebase is only the ant model |
-| 3 | 09-18 | `03bcb80` | poi-lifespan | Food (POI) runs out after 300 ticks | Real food is finite | POI fades and is removed |
-| 4 | 09-25 | `9531694` | poi-lifespan | Keep following trails after the POI expires | Bug: ants stopped following pheromone once the food was gone | Trails still followed after expiry |
-| 5 | 09-25 | `1016866` | wind-on-pheromone | Prettier formatting only | Keep the next diff readable | No behaviour change |
-| 6 | 09-25 | `b2d048a` | wind-on-pheromone | Wind as advection of pheromone; A↔B trails; mill detector; batch runner | Test the wind hypothesis | **0/120 mills**; wind pushes the colony into the wall |
-| 7 | 09-28 | `fe297df` | wind-on-pheromone | AGENTS.md committed | Selected by mistake | — |
-| 8 | 09-28 | `4085dfc` | wind-on-pheromone | AGENTS.md untracked again | Keep it private | — |
-| 9 | 09-28 | `7c124f7` | army-ant-movement | New movement: blind army ant with two antennae (v2) | v1 never milled and was judged unrealistic | Ring persists 10/10; **mills emerge in ~90%** |
-| 10 | 09-28 | `6082cec` | army-ant-movement | Wind experiments E1–E3 on v2 | Re-ask the question with a model that can mill | Strong wind kills mills; weak wind → more, smaller mills |
-
-Only `master`, `poi-lifespan` and `wind-on-pheromone` are on GitHub. `army-ant-movement` and this report exist only locally.
+| 1 | 11/09 | `54fd7bd` | master | Primeira simulação: campo de feromônio + direção por memória/reforço (v1) | Ponto de partida, baseado em Li & Chen | As formigas vão até o POI; moinhos apenas "ocasionais" |
+| 2 | 11/09 | `0f61a19` | master | Remove o código do Conway (Jogo da Vida) | Código morto da origem do projeto | O código passa a ser só o modelo de formigas |
+| 3 | 18/09 | `03bcb80` | poi-lifespan | A comida (POI) acaba depois de 300 ticks | Comida real é finita | O POI desbota e some |
+| 4 | 25/09 | `9531694` | poi-lifespan | Continuar seguindo trilhas depois que o POI acaba | Bug: as formigas paravam de seguir o feromônio quando a comida acabava | Trilhas continuam sendo seguidas |
+| 5 | 25/09 | `1016866` | wind-on-pheromone | Só formatação (Prettier) | Deixar legível o diff seguinte | Nenhuma mudança de comportamento |
+| 6 | 25/09 | `b2d048a` | wind-on-pheromone | Vento como advecção do feromônio; trilhas A↔B; detector de moinho; execução em lote | Testar a hipótese do vento | **0/120 moinhos**; o vento empurra a colônia contra a parede |
+| 7 | 28/09 | `fe297df` | wind-on-pheromone | AGENTS.md versionado | Selecionado por engano | — |
+| 8 | 28/09 | `4085dfc` | wind-on-pheromone | AGENTS.md deixa de ser versionado | Manter o arquivo privado | — |
+| 9 | 28/09 | `7c124f7` | army-ant-movement | Novo movimento: formiga de correição cega com duas antenas (v2) | O v1 nunca formava moinho e foi considerado irrealista | Anel se mantém 10/10; **moinhos surgem em ~90%** |
+| 10 | 28/09 | `6082cec` | army-ant-movement | Experimentos de vento E1–E3 no v2 | Refazer a pergunta com um modelo capaz de formar moinhos | Vento forte mata moinhos; vento fraco → mais moinhos, menores |
 
 ---
 
-## 3. Background: the ant mill and the paper
+## 3. Contexto: o moinho de formigas e o artigo
 
-**The biology.** Army ants are nearly blind and navigate by pheromone alone. An ant follows the trail left by the ants ahead and lays its own trail as it walks. No individual knows where the nest or food is. A mill (Beebe 1921; Schneirla 1944) happens when a group loses the main trail and the head of the column runs into its own tail. From then on the closed loop sustains itself, because every ant keeps doing exactly what it always does.
+**A biologia.** Formigas de correição são quase cegas e se orientam só pelo feromônio. Cada formiga segue a trilha deixada pelas da frente e deposita a sua própria trilha enquanto anda. Nenhuma formiga sabe onde está o ninho ou a comida. Um moinho (Beebe 1921; Schneirla 1944) acontece quando um grupo perde a trilha principal e a cabeça da coluna encontra a própria cauda. A partir daí o laço fechado se mantém sozinho, porque cada formiga continua fazendo exatamente o que sempre fez.
 
-**The paper.** Li & Chen, *Exploring the Ant Mill: Numerical and Analytical Investigations of Mixed Memory-Reinforcement Systems* (arXiv:1703.06859), makes two attempts at modelling this.
+**O artigo.** Li & Chen, *Exploring the Ant Mill: Numerical and Analytical Investigations of Mixed Memory-Reinforcement Systems* (arXiv:1703.06859), faz duas tentativas de modelar o fenômeno.
 
-1. *Rejected:* a density in position–velocity phase space, $\rho(\vec x, \theta, t)$. The equation is linear, so it has no non-trivial solution and cannot produce a spiral.
-2. *Accepted:* a continuum fluid model with density $\rho$, pheromone $g$ and velocity $\vec v$:
+1. *Rejeitada:* uma densidade no espaço de fase posição–velocidade, $\rho(\vec x, \theta, t)$. A equação é linear, então não tem solução não trivial e não consegue produzir uma espiral.
+2. *Aceita:* um modelo contínuo de fluido com densidade $\rho$, feromônio $g$ e velocidade $\vec v$:
 
 $$
 \frac{\partial \rho}{\partial t} + \vec v\cdot\nabla\rho = \nabla\cdot\left(\nabla\rho - \rho\,\frac{\beta}{\alpha+\beta g}\,\nabla g\right)
@@ -74,87 +72,87 @@ $$
 \frac{\partial \vec v}{\partial t} + \vec v\cdot\nabla\vec v = b\,\nabla g
 $$
 
-The coupling between density and pheromone makes the system non-linear. That non-linearity allows a stationary, axially symmetric **spiral** solution, which the paper shows is stable.
+O acoplamento entre densidade e feromônio torna o sistema não linear. Essa não linearidade permite uma solução estacionária em **espiral**, com simetria axial, que o artigo mostra ser estável.
 
-Two ingredients drive it: **reinforcement**, since ants are pulled up the pheromone gradient, and **memory**, since velocity persists, so ants keep going the way they were going.
+Dois ingredientes a produzem: **reforço**, porque as formigas são puxadas a favor do gradiente de feromônio, e **memória**, porque a velocidade persiste, então as formigas continuam indo para onde já iam.
 
-**Where this code sits.** The simulation keeps *individual* ants, the style of the rejected first attempt, but gives each ant the *local force law* of the accepted model. It is a Lagrangian, agent-based approximation of an Eulerian, continuum result. So a mill is not guaranteed here the way the paper's steady state is: mills form, merge and break up, with run-to-run variance.
+**Onde este código se encaixa.** A simulação mantém formigas *individuais*, no estilo da primeira tentativa (a rejeitada), mas dá a cada formiga a *lei de força local* do modelo aceito. É uma aproximação lagrangiana, baseada em agentes, de um resultado euleriano e contínuo. Por isso o moinho aqui não é garantido como o estado estacionário do artigo: moinhos se formam, se fundem e se desfazem, com variação de uma execução para outra.
 
 ---
 
-## 4. The physics and the maths
+## 4. A física e a matemática
 
-### 4.1 The pheromone field (reaction–diffusion)
+### 4.1 O campo de feromônio (reação–difusão)
 
-Pheromone $g(x,y,t)$ lives on the grid. Without wind:
+O feromônio $g(x,y,t)$ fica na grade. Sem vento:
 
 $$
 \frac{\partial g}{\partial t} = D\,\nabla^2 g \;+\; \lambda\rho \;-\; \mu g
 $$
 
-- $D\nabla^2 g$: diffusion, the pheromone spreading out.
-- $\lambda\rho$: deposition, where $\rho$ is the number of ants in the cell and $\lambda$ is `deposit` = 0.2 per ant per tick.
-- $\mu g$: evaporation, with $\mu$ = `evaporation` = 0.05 per tick.
+- $D\nabla^2 g$: difusão, o feromônio se espalhando.
+- $\lambda\rho$: depósito, onde $\rho$ é o número de formigas na célula e $\lambda$ é `deposit` = 0,2 por formiga por tick.
+- $\mu g$: evaporação, com $\mu$ = `evaporation` = 0,05 por tick.
 
-**Discretisation.** Explicit Euler with $\Delta t = 1$ tick and $\Delta x = 1$ cell, using the 5-point Laplacian:
+**Discretização.** Euler explícito com $\Delta t = 1$ tick e $\Delta x = 1$ célula, usando o laplaciano de 5 pontos:
 
 $$
 g^{n+1}_{i,j} = g^n_{i,j} + D\left(g_{i+1,j}+g_{i-1,j}+g_{i,j+1}+g_{i,j-1}-4g_{i,j}\right) - \mu\, g_{i,j}
 $$
 
-At the edges a missing neighbour counts as equal to the cell itself, so no pheromone flows through the walls (zero-flux, or Neumann, boundary).
+Nas bordas, um vizinho que não existe conta como igual à própria célula, então nenhum feromônio atravessa as paredes (fluxo zero, condição de Neumann).
 
-**Why it is stable.** The coefficient of $g_{i,j}$ is $1-4D-\mu = 0.93 > 0$, and every neighbour's coefficient is $D>0$. The new value is therefore a weighted average of old non-negative values minus decay. Pheromone can never become negative or blow up.
+**Por que é estável.** O coeficiente de $g_{i,j}$ é $1-4D-\mu = 0{,}93 > 0$, e o de cada vizinho é $D>0$. O novo valor é, portanto, uma média ponderada de valores antigos não negativos, menos o decaimento. O feromônio nunca fica negativo nem explode.
 
-**Useful scales** (these explain much of the behaviour):
+**Escalas úteis** (explicam boa parte do comportamento):
 
-| Quantity | Formula | Value |
+| Grandeza | Fórmula | Valor |
 |---|---|---|
-| Pheromone lifetime | $1/\mu$ | 20 ticks (2 s on screen) |
-| Diffusion length during that lifetime | $\sqrt{D/\mu}$ | 0.32 cells: pheromone basically stays where it was laid |
-| Steady level under one stationary ant | $\lambda(1-\mu)/\mu$ | 3.8 |
+| Tempo de vida do feromônio | $1/\mu$ | 20 ticks (2 s na tela) |
+| Distância de difusão nesse tempo | $\sqrt{D/\mu}$ | 0,32 célula: o feromônio praticamente fica onde foi depositado |
+| Nível estacionário sob uma formiga parada | $\lambda(1-\mu)/\mu$ | 3,8 |
 
-Because diffusion is so weak, the pheromone field is essentially **a recent history of where the ants walked**, fading over about 20 ticks. A trail survives only if ants keep walking it.
+Como a difusão é muito fraca, o campo de feromônio é essencialmente **um histórico recente de por onde as formigas andaram**, que se apaga em uns 20 ticks. Uma trilha só sobrevive se as formigas continuarem passando por ela.
 
-### 4.2 Wind: advection of the pheromone
+### 4.2 Vento: advecção do feromônio
 
-Wind is a uniform velocity $\vec v_w=(v_x,v_y)$ that carries pheromone along. This adds an advection term:
+O vento é uma velocidade uniforme $\vec v_w=(v_x,v_y)$ que carrega o feromônio. Isso acrescenta um termo de advecção:
 
 $$
 \frac{\partial g}{\partial t} = D\nabla^2 g \;-\; \vec v_w\cdot\nabla g \;+\; \lambda\rho \;-\; \mu g
 $$
 
-The wind acts **only on $g$**. No line of the movement code reads the wind. An ant feels it only through the pheromone values its antennae read. This was checked: with deposition switched off, ant trajectories are identical with and without wind.
+O vento age **só sobre $g$**. Nenhuma linha do código de movimento lê o vento. A formiga só o percebe pelos valores de feromônio que suas antenas leem. Isso foi verificado: com o depósito desligado, as trajetórias das formigas são idênticas com e sem vento.
 
-**First-order upwind scheme.** The derivative along each axis is taken from the side the wind comes from:
+**Esquema upwind de primeira ordem.** Em cada eixo, a derivada é tomada do lado de onde o vento vem:
 
 $$
 \vec v_w\cdot\nabla g \;\approx\; |v_x|\,(g_{i,j} - g_{\text{upwind},x}) + |v_y|\,(g_{i,j} - g_{\text{upwind},y})
 $$
 
-*Why not central differences?* Central differences combined with explicit Euler are unconditionally unstable for advection: they create oscillations and negative concentrations.
+*Por que não diferenças centrais?* Diferenças centrais com Euler explícito são incondicionalmente instáveis para advecção: criam oscilações e concentrações negativas.
 
-**Stability and positivity.** With the upwind term, the update is
+**Estabilidade e positividade.** Com o termo upwind, a atualização fica
 
 $$
 g^{n+1} = (1-4D-\mu-|v_x|-|v_y|)\,g + (D+|v_x|)\,g_{\text{up},x} + D\,g_{\text{down},x} + (D+|v_y|)\,g_{\text{up},y} + D\,g_{\text{down},y}
 $$
 
-All coefficients are non-negative exactly when
+Todos os coeficientes são não negativos exatamente quando
 
 $$
-|v_x| + |v_y| \;\le\; 1 - 4D - \mu = 0.93 \text{ cells/tick}
+|v_x| + |v_y| \;\le\; 1 - 4D - \mu = 0{,}93 \text{ células/tick}
 $$
 
-This is a CFL-type condition. `advectionVelocity()` scales any stronger wind down to this limit while keeping its direction. Stress tests with requested speeds up to $10^6$ stay finite and $\ge 0$.
+É uma condição do tipo CFL. `advectionVelocity()` reduz qualquer vento mais forte até esse limite, mantendo a direção. Testes de estresse com velocidades pedidas de até $10^6$ continuam finitos e $\ge 0$.
 
-**Boundaries.** Clean air ($g=0$) enters across the upwind edge, and pheromone leaves freely across the downwind edge.
+**Bordas.** Ar limpo ($g=0$) entra pela borda de onde o vento vem, e o feromônio sai livremente pela borda oposta.
 
-**Checks that were run:**
-- With $\vec v_w = 0$ the solver is bit-for-bit the old diffusion-only one.
-- A pheromone blob loses mass exactly by the evaporation factor $0.95^{20}$ over 20 ticks.
+**Verificações feitas:**
+- Com $\vec v_w = 0$, o solver é idêntico bit a bit ao antigo, que só tinha difusão.
+- Uma mancha de feromônio perde massa exatamente pelo fator de evaporação $0{,}95^{20}$ em 20 ticks.
 
-**Drift speed (a small discretisation effect).** Take the first moment $M_1=\sum_i i\,g_i$ and the mass $M=\sum_i g_i$ of the 1-D upwind update:
+**Velocidade de deriva (um pequeno efeito da discretização).** Tome o primeiro momento $M_1=\sum_i i\,g_i$ e a massa $M=\sum_i g_i$ da atualização upwind em 1-D:
 
 $$
 M' = (1-\mu)M,\qquad M_1' = (1-\mu)M_1 + v\,M
@@ -162,269 +160,269 @@ M' = (1-\mu)M,\qquad M_1' = (1-\mu)M_1 + v\,M
 \bar x' = \bar x + \frac{v}{1-\mu}
 $$
 
-A blob therefore moves at $v/(1-\mu)\approx 1.05\,v$ cells per tick. The measured value (6.316 cells in 20 ticks at $v=0.3$) matches exactly.
+Uma mancha, portanto, se desloca $v/(1-\mu)\approx 1{,}05\,v$ células por tick. O valor medido (6,316 células em 20 ticks com $v=0{,}3$) bate exatamente.
 
-**Numerical diffusion (an important caveat).** The modified-equation analysis of first-order upwind with $\Delta x=\Delta t=1$ gives
+**Difusão numérica (uma ressalva importante).** A análise da equação modificada do upwind de primeira ordem, com $\Delta x=\Delta t=1$, dá
 
 $$
 g_t + v g_x = \underbrace{\tfrac{1}{2}|v|(1-|v|)}_{D_{\text{num}}}\, g_{xx} + \dots
 $$
 
-The scheme itself smears the field along the wind:
+O próprio esquema borra o campo na direção do vento:
 
-| Wind preset | $v$ | $D_{\text{num}}$ | vs physical $D=0.005$ |
+| Vento | $v$ | $D_{\text{num}}$ | vs. $D$ físico $=0{,}005$ |
 |---|---|---|---|
-| weak | 0.05 | 0.024 | ~5× |
-| moderate | 0.15 | 0.064 | ~13× |
-| strong | 0.40 | 0.12 | ~24× |
+| fraco | 0,05 | 0,024 | ~5× |
+| moderado | 0,15 | 0,064 | ~13× |
+| forte | 0,40 | 0,12 | ~24× |
 
-Part of the "trail disruption" at stronger winds is therefore numerical smearing rather than real transport.
+Parte da "perturbação das trilhas" nos ventos mais fortes é, portanto, borrão numérico, e não transporte real.
 
-**How the presets were chosen.** A pheromone parcel lives about $1/\mu$ ticks, so it travels an **advection length** $L = v/\mu$:
+**Como as intensidades foram escolhidas.** Uma porção de feromônio vive cerca de $1/\mu$ ticks, então percorre um **comprimento de advecção** $L = v/\mu$:
 
-| Preset | $L$ | Meaning |
+| Vento | $L$ | Significado |
 |---|---|---|
-| weak | ~1 cell | barely moves the trail |
-| moderate | ~3 cells | about half the distance between the two lanes |
-| strong | ~8 cells | more than the lane separation |
+| fraco | ~1 célula | quase não desloca a trilha |
+| moderado | ~3 células | cerca de metade da distância entre as duas pistas |
+| forte | ~8 células | mais que a distância entre as pistas |
 
-### 4.3 Movement v1 (commits 1–8): lattice ants with a food target
+### 4.3 Movimento v1 (commits 1–8): formigas na grade com um alvo de comida
 
-Each ant sits on a grid cell. Every tick:
+Cada formiga ocupa uma célula da grade. A cada tick:
 
-1. If it is in a **Lévy flight**, it keeps stepping in a fixed direction. Flight length is $L = U^{-1/(\mu_L-1)}$ with $U$ uniform, $\mu_L=1.5$ and a cap of 20. This gives a power-law tail $P(L>\ell)=\ell^{-(\mu_L-1)}$: many short flights and a few very long ones.
-2. Otherwise, **only if a POI (food) exists**, with probability 0.8 it calls `steerTowardTrail`:
-   - Gradient from the 8 neighbours: $\vec G=\sum_k \hat u_k\,g_k$.
-   - Saturated so faint traces don't count: $\vec G_s=\hat G\,\dfrac{|G|}{\alpha+|G|}$. This is the paper's $\beta/(\alpha+\beta g)$ idea.
-   - Signal: $\vec S = \text{normalise}(3\,\vec G_s + 2\,\hat r_{\text{POI}})$.
-   - Memory: $\vec d_{\text{new}}=\text{normalise}(0.5\,\vec d_{\text{old}} + 0.5\,\vec S + \text{noise})$.
-   - Step to the neighbour cell best aligned with $\vec d_{\text{new}}$.
-3. Otherwise it takes a random 4-direction step, with a 1% chance of starting a Lévy flight.
+1. Se está num **voo de Lévy**, continua andando numa direção fixa. O comprimento do voo é $L = U^{-1/(\mu_L-1)}$, com $U$ uniforme, $\mu_L=1{,}5$ e limite de 20. Isso dá uma cauda em lei de potência $P(L>\ell)=\ell^{-(\mu_L-1)}$: muitos voos curtos e alguns muito longos.
+2. Senão, **só se existir um POI (comida)**, com probabilidade 0,8 chama `steerTowardTrail`:
+   - Gradiente a partir dos 8 vizinhos: $\vec G=\sum_k \hat u_k\,g_k$.
+   - Saturado, para que traços fracos não contem: $\vec G_s=\hat G\,\dfrac{|G|}{\alpha+|G|}$. É a ideia do $\beta/(\alpha+\beta g)$ do artigo.
+   - Sinal: $\vec S = \text{normaliza}(3\,\vec G_s + 2\,\hat r_{\text{POI}})$.
+   - Memória: $\vec d_{\text{novo}}=\text{normaliza}(0{,}5\,\vec d_{\text{antigo}} + 0{,}5\,\vec S + \text{ruído})$.
+   - Passa para a célula vizinha mais alinhada com $\vec d_{\text{novo}}$.
+3. Senão, dá um passo aleatório em 4 direções, com 1% de chance de começar um voo de Lévy.
 
-**Why v1 could not mill** (this is what the first wind experiment revealed):
+**Por que o v1 não conseguia formar moinho** (foi o que o primeiro experimento de vento revelou):
 
-- **A point attractor points every heading inward.** The POI term $\hat r_{\text{POI}}$ makes all ants converge on the food and form a jittering clump. A mill needs headings *along* a loop, not toward its centre. In the classic scenario about 60 ants ended within 4 cells of the POI with speed ~0.3, and no rotation.
-- **No POI means no trail following at all** (`followChance` = 0), so the pheromone was ignored until food was placed.
-- **Lattice steps** can only trace 8-direction "staircases", not smooth circles.
-- **Weak memory.** With `memoryWeight` = 0.5 the heading forgets half of itself every tick.
+- **Um atrator pontual aponta todas as direções para dentro.** O termo $\hat r_{\text{POI}}$ faz todas as formigas convergirem para a comida e formarem um aglomerado trêmulo. Um moinho precisa de direções *ao longo* de um laço, não em direção ao centro. No cenário clássico, cerca de 60 formigas terminaram a menos de 4 células do POI, com velocidade ~0,3 e nenhuma rotação.
+- **Sem POI, não havia seguimento de trilha** (`followChance` = 0), então o feromônio era ignorado até alguém colocar comida.
+- **Passos na grade** só traçam "escadinhas" em 8 direções, e não círculos suaves.
+- **Memória fraca.** Com `memoryWeight` = 0,5, a direção esquece metade de si mesma a cada tick.
 
-### 4.4 Movement v2 (commits 9–10): the blind army ant
+### 4.4 Movimento v2 (commits 9–10): a formiga de correição cega
 
-**State.** A continuous position $(x,y)$ in cell units and a heading $\theta$. The heading is the ant's **entire memory**.
+**Estado.** Uma posição contínua $(x,y)$ em unidades de célula e uma direção $\theta$. A direção é **toda a memória** da formiga.
 
-**From the paper's force law to a turning rule.** The paper steers velocity with $\partial\vec v/\partial t = b\nabla g$. If the speed $s$ is held constant, the component of $b\nabla g$ along the heading cannot change the motion; only the perpendicular component can. Writing $\hat n$ for the ant's left-hand normal:
+**Da lei de força do artigo a uma regra de virada.** O artigo muda a velocidade por $\partial\vec v/\partial t = b\nabla g$. Se a velocidade escalar $s$ é constante, a componente de $b\nabla g$ ao longo da direção não altera o movimento; só a componente perpendicular altera. Chamando de $\hat n$ a normal à esquerda da formiga:
 
 $$
 \frac{d\theta}{dt} = \frac{b}{s}\,\left(\nabla g\cdot\hat n\right)
 $$
 
-**The antennae measure exactly that.** Two sensors sit $d$ = 3 cells ahead at $\pm\varphi$ = ±45°. To first order:
+**As antenas medem exatamente isso.** Dois sensores ficam $d$ = 3 células à frente, a $\pm\varphi$ = ±45°. Em primeira ordem:
 
 $$
-g_L - g_R \;\approx\; 2d\sin\varphi\;(\nabla g\cdot\hat n)
+g_E - g_D \;\approx\; 2d\sin\varphi\;(\nabla g\cdot\hat n)
 $$
 
-The sensors are 4.2 cells apart. Their readings are interpolated bilinearly between cell centres, so the difference varies smoothly instead of jumping when an antenna crosses a cell border. Nothing behind the ant is sensed, so its own fresh trail cannot pull it backwards.
+($E$ = antena esquerda, $D$ = direita.) As antenas ficam a 4,2 células uma da outra. As leituras são interpoladas bilinearmente entre os centros das células, para que a diferença varie suavemente em vez de saltar quando uma antena cruza a borda de uma célula. Nada atrás da formiga é percebido, então a trilha que ela acabou de deixar não a puxa para trás.
 
-**The rule the code applies every tick:**
+**A regra que o código aplica a cada tick:**
 
 $$
-\Delta\theta = \operatorname{clamp}\!\left(b\,\frac{g_L-g_R}{\alpha+g_L+g_R},\;\pm\theta_{\max}\right) + \sigma\,\xi,\qquad \xi\sim\mathcal N(0,1)
+\Delta\theta = \operatorname{clamp}\!\left(b\,\frac{g_E-g_D}{\alpha+g_E+g_D},\;\pm\theta_{\max}\right) + \sigma\,\xi,\qquad \xi\sim\mathcal N(0,1)
 $$
 
-| Symbol | Setting | Default | Role |
+| Símbolo | Parâmetro | Padrão | Papel |
 |---|---|---|---|
-| $b$ | `turnGain` | 1 | strength of the pull toward the stronger antenna |
-| $\alpha$ | `turnSaturation` | 0.05 | below this, differences count little (the paper's saturation) |
-| $\theta_{\max}$ | `maxTurn` | 0.5 rad | minimum turning radius $s/\theta_{\max}$ = 2 cells |
-| $\sigma$ | `turnNoise` | 0.1 rad | random heading noise per tick |
-| $s$ | `speed` | 1 cell/tick | constant; ants never stop |
+| $b$ | `turnGain` | 1 | força da virada em direção à antena mais forte |
+| $\alpha$ | `turnSaturation` | 0,05 | abaixo disso, diferenças pesam pouco (a saturação do artigo) |
+| $\theta_{\max}$ | `maxTurn` | 0,5 rad | raio mínimo de curva $s/\theta_{\max}$ = 2 células |
+| $\sigma$ | `turnNoise` | 0,1 rad | ruído aleatório na direção a cada tick |
+| $s$ | `speed` | 1 célula/tick | constante; as formigas nunca param |
 
-Then the ant steps $s$ along $\theta$. Walls and obstacles reflect the heading like light off a mirror: the velocity component that would cross the wall is flipped.
+Depois a formiga anda $s$ na direção $\theta$. Paredes e obstáculos refletem a direção como um espelho reflete a luz: a componente da velocidade que atravessaria a parede é invertida.
 
-**Why this can make a mill without anything "mill-like" in the code:**
+**Por que isso pode formar um moinho sem nada "de moinho" no código:**
 
-- **Symmetry.** The rule is unchanged if left and right are swapped. Neither sense of rotation is favoured, and no centre or circle appears anywhere. A mill can only appear when a trail *closes on itself*.
-- **A ring is self-consistent.** An ant on a circular trail of radius $R$ must turn $s/R$ per tick to stay on it. On a curved trail the inner antenna lies closer to the trail than the outer one, so $g_{\text{inner}}>g_{\text{outer}}$ and the ant turns inward. The turn stays proportional to the imbalance, so heading persistence and the trail's sideways pull can balance. This requires $\theta_{\max}\ge s/R$. For $R$ = 15 the needed turn is 0.067 rad per tick, well below 0.5.
-- **Positive feedback.** Ants follow trails, following deposits more pheromone, and stronger trails attract more ants. Open trails evaporate within about 20 ticks unless walked, while a closed loop is walked continuously. Loops therefore out-compete open trails. This is the paper's "reinforcement".
-- **Noise is the control parameter.** Heading noise acts like rotational diffusion. A free ant's heading decorrelates as $e^{-\sigma^2 t/2}$, so its **persistence length** is $\ell_p = 2s/\sigma^2$:
+- **Simetria.** A regra não muda se trocarmos esquerda por direita. Nenhum sentido de rotação é favorecido, e nenhum centro ou círculo aparece em lugar nenhum. Um moinho só pode surgir quando uma trilha *se fecha sobre si mesma*.
+- **Um anel é autoconsistente.** Uma formiga numa trilha circular de raio $R$ precisa virar $s/R$ por tick para continuar nela. Numa trilha curva, a antena de dentro fica mais perto da trilha que a de fora, então $g_{\text{dentro}}>g_{\text{fora}}$ e a formiga vira para dentro. Como a virada é proporcional ao desequilíbrio, a persistência da direção e o puxão lateral da trilha conseguem se equilibrar. Isso exige $\theta_{\max}\ge s/R$. Para $R$ = 15, a virada necessária é 0,067 rad por tick, bem abaixo de 0,5.
+- **Realimentação positiva.** Formigas seguem trilhas, seguir deposita mais feromônio, e trilhas mais fortes atraem mais formigas. Trilhas abertas evaporam em uns 20 ticks se ninguém passar, enquanto um laço fechado é percorrido continuamente. Por isso os laços vencem as trilhas abertas. É o "reforço" do artigo.
+- **O ruído é o parâmetro de controle.** O ruído na direção funciona como uma difusão rotacional. A direção de uma formiga livre se descorrelaciona como $e^{-\sigma^2 t/2}$, então o seu **comprimento de persistência** é $\ell_p = 2s/\sigma^2$:
 
-| $\sigma$ | $\ell_p$ | Measured result |
+| $\sigma$ | $\ell_p$ | Resultado medido |
 |---|---|---|
-| 0.1 | 200 cells | mills form |
-| 0.2 | 50 cells | mills form |
-| 0.3 | 22 cells | mills mostly collapse |
+| 0,1 | 200 células | moinhos se formam |
+| 0,2 | 50 células | moinhos se formam |
+| 0,3 | 22 células | a maioria dos moinhos colapsa |
 
-A typical mill has a circumference of $2\pi\cdot23\approx145$ cells. Once noise makes ants lose direction over much less than one loop, trail following can't hold them. This is a heuristic explanation (it ignores the trail's restoring pull), but it matches the measurements.
+Um moinho típico tem circunferência $2\pi\cdot23\approx145$ células. Quando o ruído faz a formiga perder a direção em bem menos que uma volta, seguir a trilha não basta para segurá-la. É uma explicação heurística (ignora o puxão de volta da trilha), mas bate com as medições.
 
-### 4.5 Detecting a mill (`millMetrics.ts`)
+### 4.5 Detectando um moinho (`millMetrics.ts`)
 
-The detector only observes; it never feeds back into the simulation.
+O detector só observa; nunca interfere na simulação.
 
-**Why not the classic order parameter?** The standard rotation order parameter (Couzin et al. 2002) is
+**Por que não o parâmetro de ordem clássico?** O parâmetro de ordem rotacional padrão (Couzin et al. 2002) é
 
 $$
 O_r = \left|\frac{1}{N}\sum_i \hat r_i\times\hat v_i\right|
 $$
 
-where $\hat r_i$ points from the centre to ant $i$ and $\hat v_i$ is its direction of motion. About an arbitrary centre $c$, even pure translation gives $\sum_i(\vec r_i-c)\times\vec v = N(\bar r - c)\times\vec v\ne0$. In particular, two **counter-flowing straight lanes**, the wind experiment's own starting condition, score about 0.3 with nobody going round in circles. $O_r$ alone would report fake mills.
+em que $\hat r_i$ aponta do centro para a formiga $i$ e $\hat v_i$ é a direção do seu movimento. Em torno de um centro arbitrário $c$, até uma translação pura dá $\sum_i(\vec r_i-c)\times\vec v = N(\bar r - c)\times\vec v\ne0$. Em particular, duas **pistas retas em sentidos opostos**, a própria condição inicial do experimento de vento, marcam cerca de 0,3 sem que ninguém esteja andando em círculo. Sozinho, $O_r$ acusaria moinhos falsos.
 
-**Two-step detector:**
+**Detector em duas etapas:**
 
-1. **Is each ant really looping?** Its direction is that of its net displacement over 5 ticks. The detector accumulates the turning of that direction in an exponential window of $W$ = 300 ticks:
+1. **Cada formiga está mesmo dando voltas?** A direção dela é a do seu deslocamento líquido em 5 ticks. O detector acumula o quanto essa direção gira numa janela exponencial de $W$ = 300 ticks:
    $$w_i \leftarrow w_i\left(1-\tfrac1W\right)+\Delta\theta_i$$
-   The ant is *looping* if $|w_i|\ge 2\pi$ (one full turn) **and** $|w_i| \ge 0.3\sum|\Delta\theta_i|$ (it turned mostly to one side). Turns over 60° in a single tick are reversals and are ignored rather than counted as ±π; without that rule, ants going back and forth accumulated fake rotation.
-2. **Are they circling together?** Take the looping ants of the majority sense (the *participants*) and their centroid. The *alignment* is the fraction of participants whose angular momentum about that centroid has the loop's sense. The state is **rotating** when there are ≥ 15 participants and alignment ≥ 0.8. Unrelated loops scattered around the grid sit near 0.5.
+   A formiga está *dando voltas* se $|w_i|\ge 2\pi$ (uma volta completa) **e** $|w_i| \ge 0{,}3\sum|\Delta\theta_i|$ (girou principalmente para um lado). Viradas acima de 60° num único tick são inversões e são ignoradas, em vez de contar como ±π; sem essa regra, formigas indo e voltando acumulavam rotação falsa.
+2. **Elas giram juntas?** Tome as formigas que dão voltas no sentido majoritário (as *participantes*) e o centroide delas. O *alinhamento* é a fração das participantes cujo momento angular em torno desse centroide tem o sentido do giro. O estado é **girando** quando há ≥ 15 participantes e alinhamento ≥ 0,8. Laços independentes espalhados pela grade ficam perto de 0,5.
 
-A run counts as **"mill formed"** when one continuous rotating episode completes ≥ 1 full rotation.
+Uma execução conta como **"formou moinho"** quando um episódio contínuo de giro completa ≥ 1 volta inteira.
 
-**Calibration against known answers:**
+**Calibração contra respostas conhecidas:**
 
-| Situation | Outcome |
+| Situação | Resultado |
 |---|---|
-| Synthetic circular mills (15–40 ants, radius 4–15), a drifting mill, a clump chasing round a ring, a racetrack around both lanes | Detected; participant counts exact (e.g. 40/40, radius 7.7 for a true 8) |
-| Counter-flowing lanes, scattered independent loops, pure random walkers | Never flagged |
-| Mills of radius ≥ 20 | Only partly detected |
+| Moinhos circulares sintéticos (15–40 formigas, raio 4–15), um moinho à deriva, um aglomerado correndo em volta de um anel, um circuito oval em volta das duas pistas | Detectados; contagem de participantes exata (ex.: 40/40, raio 7,7 para um raio real de 8) |
+| Pistas em sentidos opostos, laços independentes espalhados, passeios aleatórios puros | Nunca acusados |
+| Moinhos de raio ≥ 20 | Detectados só em parte |
 
-### 4.6 Statistics
+### 4.6 Estatística
 
-- **Paired design.** Run $r$ of every wind level uses the same seed. Initial conditions are identical; only the random dynamics differ.
-- **Proportion of runs with a mill:** 95% Wilson interval
-  $$\frac{\hat p + \frac{z^2}{2n} \pm z\sqrt{\frac{\hat p(1-\hat p)}{n}+\frac{z^2}{4n^2}}}{1+\frac{z^2}{n}},\qquad z=1.96$$
-- **Wind vs no wind, same seeds: exact McNemar test.** Only seeds whose outcome flipped count: $b$ lost a mill, $c$ gained one.
+- **Desenho pareado.** A execução $r$ de cada intensidade de vento usa a mesma semente. As condições iniciais são idênticas; só a dinâmica aleatória muda.
+- **Proporção de execuções com moinho:** intervalo de Wilson de 95%
+  $$\frac{\hat p + \frac{z^2}{2n} \pm z\sqrt{\frac{\hat p(1-\hat p)}{n}+\frac{z^2}{4n^2}}}{1+\frac{z^2}{n}},\qquad z=1{,}96$$
+- **Vento vs. sem vento, mesmas sementes: teste exato de McNemar.** Só contam as sementes cujo resultado mudou: $b$ perderam o moinho, $c$ ganharam.
   $$p = \min\!\left(1,\;2\sum_{k=0}^{\min(b,c)}\binom{b+c}{k}2^{-(b+c)}\right)$$
-  Example: pooled weak wind, 5 lost and 19 gained, gives $p = 2\cdot 55455/2^{24} \approx 0.007$.
-- **Continuous metrics:** mean ± standard error $s/\sqrt n$, and paired differences for the Δ columns.
+  Exemplo: vento fraco agregado, 5 perdidos e 19 ganhos, dá $p = 2\cdot 55455/2^{24} \approx 0{,}007$.
+- **Métricas contínuas:** média ± erro padrão $s/\sqrt n$, e diferenças pareadas nas colunas Δ.
 
 ---
 
-## 5. Commit by commit
+## 5. Commit a commit
 
-### 1 · `54fd7bd` — Initial commit (2026-09-11, master)
-- **Concept:** a canvas cellular automaton with a pheromone field (diffusion + evaporation + deposition) and ants steered by memory and reinforcement toward a point of interest, with random walk and Lévy flights for exploration. This is movement v1, §4.3.
-- **Why:** the starting point, loosely based on Li & Chen.
-- **Result:** ants find and swarm the food. The mill was described as "a handful of ants circling an obstacle for a while". It was never measured, and the later detector found no sustained mill with this model.
+### 1 · `54fd7bd` — Commit inicial (11/09/2026, master)
+- **Conceito:** um autômato celular em canvas com campo de feromônio (difusão + evaporação + depósito) e formigas guiadas por memória e reforço até um ponto de interesse, com passeio aleatório e voos de Lévy para explorar. É o movimento v1, §4.3.
+- **Por quê:** ponto de partida, baseado livremente em Li & Chen.
+- **Resultado:** as formigas encontram a comida e se amontoam nela. O moinho era descrito como "um punhado de formigas circulando um obstáculo por um tempo". Isso nunca foi medido, e o detector criado depois não encontrou nenhum moinho duradouro com esse modelo.
 
-### 2 · `0f61a19` — Remove Conway scaffolding (2026-09-11, master)
-- **Concept:** delete the unused Game-of-Life rules, the `Rules` interface and `Cell.alive`.
-- **Why:** leftover from the project's origin; only the ant model runs.
-- **Result:** simpler codebase, no behaviour change.
+### 2 · `0f61a19` — Remove o código do Conway (11/09/2026, master)
+- **Conceito:** apaga as regras do Jogo da Vida que não eram usadas, a interface `Rules` e `Cell.alive`.
+- **Por quê:** sobra da origem do projeto; só o modelo de formigas roda.
+- **Resultado:** código mais simples, sem mudança de comportamento.
 
-### 3 · `03bcb80` — Food that runs out (2026-09-18, poi-lifespan)
-- **Concept:** each POI has a lifespan (default 300 ticks). It fades as it depletes, then disappears.
-- **Why:** real food sources are finite.
-- **Result:** POIs vanish over time. This exposed the bug fixed in the next commit.
+### 3 · `03bcb80` — Comida que acaba (18/09/2026, poi-lifespan)
+- **Conceito:** cada POI tem um tempo de vida (padrão 300 ticks). Ele desbota enquanto se esgota e depois some.
+- **Por quê:** fontes de comida reais são finitas.
+- **Resultado:** os POIs somem com o tempo. Isso expôs o bug corrigido no commit seguinte.
 
-### 4 · `9531694` — Keep following trails after food expires (2026-09-25, poi-lifespan)
-- **Concept:** the rule "follow trails only if a POI exists" became "only if a POI has *ever* existed".
-- **Why:** when the last POI expired, the follow probability fell to 0 and ants ignored an established trail.
-- **Result:** trails keep being followed after the food is gone. *This branch was never merged, and movement v2 later removed POIs entirely.*
+### 4 · `9531694` — Continuar seguindo trilhas depois que a comida acaba (25/09/2026, poi-lifespan)
+- **Conceito:** a regra "só segue trilhas se existir um POI" virou "só se *já tiver existido* um POI".
+- **Por quê:** quando o último POI acabava, a probabilidade de seguir caía para 0 e as formigas ignoravam uma trilha já estabelecida.
+- **Resultado:** as trilhas continuam sendo seguidas depois que a comida acaba. *Esta branch nunca foi integrada, e o movimento v2 depois removeu os POIs de vez.*
 
-### 5 · `1016866` — Prettier formatting (2026-09-25, wind-on-pheromone)
-- **Concept / why:** formatting only, so the next commit's diff shows only real changes.
-- **Result:** no behaviour change.
+### 5 · `1016866` — Formatação com Prettier (25/09/2026, wind-on-pheromone)
+- **Conceito / por quê:** só formatação, para que o diff do commit seguinte mostre apenas mudanças reais.
+- **Resultado:** nenhuma mudança de comportamento.
 
-### 6 · `b2d048a` — Wind experiment platform (2026-09-25, wind-on-pheromone)
-- **Concept:**
-  - wind as advection of pheromone, with the upwind scheme and stability cap of §4.2;
-  - seeded A→B / B→A lanes;
-  - the mill detector of §4.5;
-  - a headless paired batch runner (`npm run experiment`);
-  - on screen: wind arrow, heads-up display, keys 1–4.
-- **Why:** to test whether trail disruption by wind favours mills, with wind acting only on the pheromone.
-- **Validation:**
-  - zero wind reproduces the old code exactly;
-  - wind never moves ants directly;
-  - pheromone stays $\ge 0$ and finite;
-  - random walk, Lévy flights, memory, obstacles and POIs all still work.
-- **Result (pilot, 10 paired runs × 4 winds × 3 obstacle layouts):** **0/10 mills in every condition.** Wind carried the whole trail system downwind at about the wind speed until the colony was pinned to the downwind wall. A crosswind also broke the two lanes into drifting clusters. The conclusion was that the model, not the wind, was the bottleneck.
+### 6 · `b2d048a` — Plataforma do experimento de vento (25/09/2026, wind-on-pheromone)
+- **Conceito:**
+  - vento como advecção do feromônio, com o esquema upwind e o limite de estabilidade da §4.2;
+  - pistas A→B / B→A geradas com semente;
+  - o detector de moinho da §4.5;
+  - execução pareada em lote sem navegador (`npm run experiment`);
+  - na tela: seta do vento, painel de métricas, teclas 1–4.
+- **Por quê:** testar se a perturbação das trilhas pelo vento favorece moinhos, com o vento agindo só sobre o feromônio.
+- **Validação:**
+  - sem vento, o código antigo é reproduzido exatamente;
+  - o vento nunca move as formigas diretamente;
+  - o feromônio fica $\ge 0$ e finito;
+  - passeio aleatório, voos de Lévy, memória, obstáculos e POIs continuam funcionando.
+- **Resultado (piloto, 10 execuções pareadas × 4 ventos × 3 layouts de obstáculo):** **0/10 moinhos em todas as condições.** O vento carregou todo o sistema de trilhas a favor do vento, mais ou menos na velocidade do vento, até a colônia ficar presa contra a parede. Um vento cruzado também quebrou as duas pistas em aglomerados que derivavam. A conclusão foi que o gargalo era o modelo, e não o vento.
 
-### 7–8 · `fe297df`, `4085dfc` — AGENTS.md (2026-09-28, wind-on-pheromone)
-- **Concept / why:** a local guidance file for another tool was committed by mistake, then untracked.
-- **Result:** no code change. The file stays local, excluded from git.
+### 7–8 · `fe297df`, `4085dfc` — AGENTS.md (28/09/2026, wind-on-pheromone)
+- **Conceito / por quê:** um arquivo local de orientações para outra ferramenta foi versionado por engano e depois retirado.
+- **Resultado:** nenhuma mudança de código. O arquivo continua só local, excluído do git.
 
-### 9 · `7c124f7` — Army-ant movement (2026-09-28, army-ant-movement)
-- **Concept:** movement v2 of §4.4 (continuous position, constant speed, two antennae, proportional saturating turn, heading noise, reflecting walls). Removed the POI, Lévy flights and random-walk phases. Added neutral test scenarios (`random`, `column`, `ring`) and `npm run movement` with parameter sweeps.
-- **Why:** v1 never milled and was judged unrealistic for army ants, which are blind, always walking and pure trail followers. The goal was to get a neutral baseline that can mill before studying perturbations.
-- **Results:**
-  - **Test A** (`ring`, the only *seeded* mill): it persists in 10/10 runs, with all 200 ants participating for about 28 rotations. This shows the rule can sustain a mill.
-  - **Test B** (`random`: random positions and headings, *no pheromone*): a mill forms in **10/10** runs, first rotation after 510 ± 126 ticks, with 73% of ants in columns. The mill here **emerges**.
-  - **Robustness:** mills form in 8–9 of 10 runs for $b\in\{0.5,1,2\}$ with $\sigma\le0.2$. At $\sigma=0.3$ they drop to 0–5 of 10, so noise is the control parameter (§4.4).
+### 9 · `7c124f7` — Movimento de formiga de correição (28/09/2026, army-ant-movement)
+- **Conceito:** o movimento v2 da §4.4 (posição contínua, velocidade constante, duas antenas, virada proporcional com saturação, ruído na direção, paredes que refletem). Removidos o POI, os voos de Lévy e as fases de passeio aleatório. Adicionados cenários neutros de teste (`random`, `column`, `ring`) e `npm run movement` com varreduras de parâmetros.
+- **Por quê:** o v1 nunca formava moinho e foi considerado irrealista para formigas de correição, que são cegas, estão sempre andando e só seguem trilhas. O objetivo era ter uma base neutra capaz de formar moinhos antes de estudar perturbações.
+- **Resultados:**
+  - **Teste A** (`ring`, o único moinho *semeado*): se mantém em 10/10 execuções, com as 200 formigas participando por cerca de 28 voltas. Mostra que a regra consegue sustentar um moinho.
+  - **Teste B** (`random`: posições e direções aleatórias, *sem feromônio*): um moinho se forma em **10/10** execuções, com a primeira volta depois de 510 ± 126 ticks e 73% das formigas em colunas. Aqui o moinho **emerge**.
+  - **Robustez:** moinhos se formam em 8–9 de 10 execuções para $b\in\{0{,}5;\,1;\,2\}$ com $\sigma\le0{,}2$. Com $\sigma=0{,}3$ caem para 0–5 de 10, então o ruído é o parâmetro de controle (§4.4).
 
-### 10 · `6082cec` — Wind experiments on the army-ant movement (2026-09-28, army-ant-movement)
-- **Concept:** added mill radius and wall-contact diagnostics, and ran three paired experiments with a crosswind and no obstacles.
-- **Why:** re-ask the wind question with a model that can actually mill.
-- **Results:**
+### 10 · `6082cec` — Experimentos de vento no movimento de correição (28/09/2026, army-ant-movement)
+- **Conceito:** adicionados diagnósticos de raio do moinho e de contato com a parede, e três experimentos pareados com vento cruzado e sem obstáculos.
+- **Por quê:** refazer a pergunta do vento com um modelo que realmente forma moinhos.
+- **Resultados:**
 
-**E1 — does wind destroy an existing mill?** (`ring`, 20 runs × 2000 ticks)
+**E1 — o vento destrói um moinho existente?** (`ring`, 20 execuções × 2000 ticks)
 
-| Wind | Mill (≥ 1 rotation) | Rotating, last quarter | Rotations | Ants near walls |
+| Vento | Moinho (≥ 1 volta) | Girando, último quarto | Voltas | Formigas perto das paredes |
 |---|---|---|---|---|
-| none | 20/20 | 100% | 27.6 | 0% |
-| weak | 20/20 | 43 ± 7% | 14.3 | 10% |
-| moderate | 20/20 | 33 ± 5% | 4.2 | 15% |
-| strong | 5/20 (p < 0.001) | 6 ± 3% | 0.7 | 19% |
+| nenhum | 20/20 | 100% | 27,6 | 0% |
+| fraco | 20/20 | 43 ± 7% | 14,3 | 10% |
+| moderado | 20/20 | 33 ± 5% | 4,2 | 15% |
+| forte | 5/20 (p < 0,001) | 6 ± 3% | 0,7 | 19% |
 
-**E2 — mills from scratch, default settings** (`random`, 40 runs × 3000 ticks)
+**E2 — moinhos do zero, parâmetros padrão** (`random`, 40 execuções × 3000 ticks)
 
-| Wind | Mills | Lost / gained, p | Rotating % (paired Δ) | Mill radius | Mill touching wall |
+| Vento | Moinhos | Perdidos / ganhos, p | % girando (Δ pareado) | Raio do moinho | Moinho tocando a parede |
 |---|---|---|---|---|---|
-| none | 33/40 | | 46 ± 4 | 23 ± 1 | 42 ± 5% |
-| weak | 39/40 | 1 / 7, 0.07 | 45 ± 2 (−1 ± 5) | 15 ± 0.4 | 61 ± 3% |
-| moderate | 37/40 | 3 / 7, 0.34 | 30 ± 2 (−16 ± 5) | 13 ± 0.5 | 58 ± 2% |
-| strong | 10/40 | 27 / 4, < 0.001 | 9 ± 1 (−37 ± 4) | 12 ± 0.6 | 62 ± 2% |
+| nenhum | 33/40 | | 46 ± 4 | 23 ± 1 | 42 ± 5% |
+| fraco | 39/40 | 1 / 7; 0,07 | 45 ± 2 (−1 ± 5) | 15 ± 0,4 | 61 ± 3% |
+| moderado | 37/40 | 3 / 7; 0,34 | 30 ± 2 (−16 ± 5) | 13 ± 0,5 | 58 ± 2% |
+| forte | 10/40 | 27 / 4; < 0,001 | 9 ± 1 (−37 ± 4) | 12 ± 0,6 | 62 ± 2% |
 
-**E3 — mills from scratch where they are rare** ($\sigma$ = 0.3, 40 runs × 3000 ticks)
+**E3 — moinhos do zero onde eles são raros** ($\sigma$ = 0,3, 40 execuções × 3000 ticks)
 
-| Wind | Mills | Lost / gained, p | Rotating % (paired Δ) | Mill radius | Mill touching wall |
+| Vento | Moinhos | Perdidos / ganhos, p | % girando (Δ pareado) | Raio do moinho | Moinho tocando a parede |
 |---|---|---|---|---|---|
-| none | 21/40 | | 23 ± 4 | 22 ± 1.5 | 38 ± 5% |
-| weak | 29/40 | 4 / 12, 0.08 | 19 ± 2 (−4 ± 4) | 16 ± 0.6 | 71 ± 4% |
-| moderate | 16/40 | 12 / 7, 0.36 | 6 ± 1 (−16 ± 4) | 16 ± 1.0 | 75 ± 4% |
-| strong | 0/40 | 21 / 0, < 0.001 | 0.3 ± 0.1 (−22 ± 4) | 28 ± 1.1 | 90 ± 5% |
+| nenhum | 21/40 | | 23 ± 4 | 22 ± 1,5 | 38 ± 5% |
+| fraco | 29/40 | 4 / 12; 0,08 | 19 ± 2 (−4 ± 4) | 16 ± 0,6 | 71 ± 4% |
+| moderado | 16/40 | 12 / 7; 0,36 | 6 ± 1 (−16 ± 4) | 16 ± 1,0 | 75 ± 4% |
+| forte | 0/40 | 21 / 0; < 0,001 | 0,3 ± 0,1 (−22 ± 4) | 28 ± 1,1 | 90 ± 5% |
 
 ---
 
-## 6. What the results mean
+## 6. O que os resultados significam
 
-1. **A mill can emerge from purely local, symmetric trail following.** With movement v2, random ants with no initial trail self-organise into columns, then loops, then usually one large mill. No line of code refers to rotation. This reproduces, in an agent model, the qualitative claim of Li & Chen that memory plus reinforcement produces a self-sustaining circulation.
-2. **Strong wind suppresses mills** in every experiment. It destroys an existing mill (E1), almost prevents new ones (E2: 10/40; E3: 0/40), and cuts rotating time. Physically, the advection length $v/\mu\approx8$ cells is larger than the structure of a trail, so the trail no longer lies where the ants walked.
-3. **Weak wind makes a mill *episode* more likely.** Pooled over E2 and E3, 5 seeds lost a mill and 19 gained one ($p\approx0.007$). But those mills are smaller (radius ~15 vs ~23) and shorter-lived, and the total time spent rotating does not increase. **Wind gives more, briefer, smaller mills, not more milling.**
-4. **The walls are a confound.** Without wind, mills of radius ~23 in a 100-cell arena touch a wall about 40% of the time; under wind this rises to 60–90%, as the colony is pushed against the downwind wall. The weak-wind increase therefore **cannot yet be attributed to the wind acting on trails** rather than to loops pinned against the wall.
+1. **Um moinho pode emergir de um seguimento de trilha puramente local e simétrico.** Com o movimento v2, formigas aleatórias sem nenhuma trilha inicial se organizam sozinhas em colunas, depois em laços, e em geral num único moinho grande. Nenhuma linha de código fala em rotação. Isso reproduz, num modelo de agentes, a afirmação qualitativa de Li & Chen de que memória mais reforço produz uma circulação que se sustenta sozinha.
+2. **Vento forte suprime moinhos** em todos os experimentos. Ele destrói um moinho existente (E1), quase impede novos (E2: 10/40; E3: 0/40) e reduz o tempo girando. Fisicamente, o comprimento de advecção $v/\mu\approx8$ células é maior que a estrutura de uma trilha, então a trilha já não fica onde as formigas andaram.
+3. **Vento fraco torna um *episódio* de moinho mais provável.** Somando E2 e E3, 5 sementes perderam o moinho e 19 ganharam ($p\approx0{,}007$). Mas esses moinhos são menores (raio ~15 contra ~23) e duram menos, e o tempo total girando não aumenta. **O vento produz moinhos mais frequentes, mais curtos e menores, não mais tempo em moinho.**
+4. **As paredes são um fator de confusão.** Sem vento, moinhos de raio ~23 numa arena de 100 células tocam uma parede cerca de 40% do tempo; com vento isso sobe para 60–90%, porque a colônia é empurrada contra a parede a favor do vento. O aumento com vento fraco, portanto, **ainda não pode ser atribuído ao vento agindo sobre as trilhas**, e não aos laços presos contra a parede.
 
-**Answer to the question so far:** wind is mainly **destructive** to mills. The one hint of a favourable effect (weak wind) is real statistically, but it is entangled with the arena boundary.
+**Resposta à pergunta até aqui:** o vento é principalmente **destrutivo** para os moinhos. O único indício de efeito favorável (vento fraco) é estatisticamente real, mas está misturado com o efeito da borda da arena.
 
 ---
 
-## 7. Limitations
+## 7. Limitações
 
-- **Agent-based, not the paper's PDEs.** A mill is not guaranteed to be stationary; there is run-to-run variance.
-- **Constants** were chosen by reasoning plus parameter sweeps, not derived from the paper.
-- **Small, closed arena.** Walls reflect ants, mills often touch them, and a steady wind drives everything downwind into a wall.
-- **Numerical diffusion.** First-order upwind adds 5–24× the physical diffusion at the wind presets (§4.2).
-- **Idealised wind.** It is uniform and passes through obstacles: no wake, no gusts.
-- **No crowding.** Ants don't exclude each other (a cell can hold any number), and the minimum turning radius of 2 cells allows tight "balls" of circling ants smaller than real mills.
-- **The detector is a calibrated heuristic.** It needs ≥ 15 participants and only partly detects mills of radius ≥ 20.
+- **Modelo de agentes, não as EDPs do artigo.** O moinho não tem garantia de ser estacionário; há variação entre execuções.
+- **As constantes** foram escolhidas por raciocínio mais varreduras de parâmetros, não deduzidas do artigo.
+- **Arena pequena e fechada.** As paredes refletem as formigas, os moinhos as tocam com frequência, e um vento constante leva tudo contra uma parede.
+- **Difusão numérica.** O upwind de primeira ordem acrescenta 5–24× a difusão física nas intensidades de vento usadas (§4.2).
+- **Vento idealizado.** É uniforme e atravessa obstáculos: sem esteira, sem rajadas.
+- **Sem aglomeração física.** As formigas não se excluem (uma célula comporta qualquer número delas), e o raio mínimo de curva de 2 células permite "bolas" apertadas de formigas girando, menores que moinhos reais.
+- **O detector é uma heurística calibrada.** Exige ≥ 15 participantes e detecta só em parte moinhos de raio ≥ 20.
 
-## 8. Suggested next steps
+## 8. Próximos passos sugeridos
 
-- **Remove the wall confound:** use periodic (wrap-around) boundaries, which requires the detector to unwrap positions, or an arena much larger than a mill. Then re-run E2 and E3.
-- **Separate transport from smearing:** add a control with the same extra diffusion but no wind, or use a less diffusive second-order flux-limited scheme.
-- **Perturb without net push:** use gusty or oscillating zero-mean wind, so trails are disrupted without the colony being blown into a wall.
-- **Choose the baseline:** decide whether the ~80–90% no-wind mill rate is too high, and use `turnNoise` as the dial (0.3 gives ~50%).
-- **Obstacles:** reintroduce them only after the neutral baseline is settled.
+- **Eliminar o efeito das paredes:** usar bordas periódicas (a arena "dá a volta"), o que exige que o detector desfaça essa volta nas posições, ou uma arena muito maior que um moinho. Depois refazer E2 e E3.
+- **Separar transporte de borrão:** incluir um controle com a mesma difusão extra, mas sem vento, ou usar um esquema de segunda ordem com limitador de fluxo, menos difusivo.
+- **Perturbar sem empurrar:** usar vento em rajadas ou oscilante com média zero, para perturbar as trilhas sem jogar a colônia contra uma parede.
+- **Definir a base:** decidir se a taxa de ~80–90% de moinhos sem vento é alta demais, e usar `turnNoise` como controle (0,3 dá ~50%).
+- **Obstáculos:** só reintroduzi-los depois que a base neutra estiver definida.
 
-## 9. Reproducing the results
+## 9. Como reproduzir os resultados
 
 ```
 git checkout army-ant-movement
 npm install
-npm run movement -- --scenario ring   --runs 10                       # Test A
-npm run movement -- --scenario random --runs 10 --ticks 3000          # Test B
+npm run movement -- --scenario ring   --runs 10                       # Teste A
+npm run movement -- --scenario random --runs 10 --ticks 3000          # Teste B
 npm run movement -- --scenario random --runs 10 --ticks 3000 \
-  --sweep turnGain=0.5,1,2 --sweep turnNoise=0.05,0.1,0.2,0.3         # robustness
+  --sweep turnGain=0.5,1,2 --sweep turnNoise=0.05,0.1,0.2,0.3         # robustez
 npm run experiment -- --scenario ring   --runs 20 --ticks 2000        # E1
 npm run experiment -- --scenario random --runs 40 --ticks 3000        # E2
 npm run experiment -- --scenario random --runs 40 --ticks 3000 --set turnNoise=0.3   # E3
-npm run dev    # then open /?scenario=random and press 1–4 for the wind levels
+npm run dev    # depois abra /?scenario=random e use as teclas 1–4 para os ventos
 ```
