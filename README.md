@@ -34,6 +34,9 @@ Open the page, then:
   Obstacles you placed survive restarts, so every wind level is compared on
   the same layout.
 
+`/report` shows the project report ([REPORT.md](REPORT.md)): commit
+timeline, the maths and physics behind each part, and every result so far.
+
 There's no test suite or linter configured in this project.
 
 ## What happens on screen

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-- `npm run dev` — start the Vite dev server (serves `index.html` / `src/index.ts`).
+- `npm run dev` — start the Vite dev server (serves `index.html` / `src/index.ts`, and `/report`: `report.html` + `src/report.ts` render `REPORT.md` with marked + KaTeX — update REPORT.md's timeline and results when adding commits or experiments).
 - `npm run build` — Vite production build, with no type checking (output would go to `dist/`, but see note below).
 - `npx tsc --noEmit` — the only type check available (no npm script for it). It currently passes cleanly, so run it after TypeScript changes.
 - `npm run preview` — preview the production build.
